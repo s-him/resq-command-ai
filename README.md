@@ -40,7 +40,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/incidents, /api/resources, /api/recommendations
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 104 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 115 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
