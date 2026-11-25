@@ -17,3 +17,21 @@ export async function createResource(payload) {
   );
 }
 
+
+
+/**
+ * GET /api/resources/nearby -> NearbyResourceList
+ * Distances are straight-line Haversine estimates, not road travel times.
+ */
+export async function findNearbyResources({ latitude, longitude, radiusKm = 25 }) {
+  const query = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    radius_km: String(radiusKm),
+  });
+  return expectObject(
+    await request(`/api/resources/nearby?${query.toString()}`),
+    "nearby resources",
+    ["latitude", "longitude", "radius_km", "resources"]
+  );
+}
