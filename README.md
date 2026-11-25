@@ -43,7 +43,6 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── recommendations.py       # Rule-based resource matching & shortfall reporting
 │   │   ├── incident_repository.py   # Parameterized SQLite queries for incidents
 │   │   ├── incident_lifecycle_repository.py # Status transitions and operator timeline
-│   │   ├── incident_lifecycle_repository.py # Status transitions and operator timeline
 │   │   ├── resource_repository.py   # Parameterized SQLite queries for resources
 │   │   ├── recommendation_repository.py # Transactional queries for recommendations & action_history
 │   │   ├── errors.py                # Structured 422 validation error formatter
@@ -86,8 +85,8 @@ This repository contains a full-stack academic decision-support prototype:
 Open **Windows PowerShell** and clone the repository:
 
 ```powershell
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd "<PROJECT_FOLDER_NAME>"
+git clone https://github.com/s-him/resq-command-ai.git
+cd resq-command-ai
 ```
 
 You will run the **backend** in **Terminal 1** and the **frontend** in **Terminal 2**.
@@ -285,7 +284,7 @@ The frontend exposes this workflow under **Dispatch Simulation**. Each plan reco
 
 The React application now includes an Alert Intelligence page at `#/alerts`. Operators can synchronize the configured GDACS and USGS feeds, filter imported alerts by provider/hazard/provider alert level/review state, open the original source report, record a reviewed/dismissed decision, and run the five-specialist assessment pipeline on an individual alert.
 
-The alert list and provider sync status refresh from the local API every 60 seconds. This is a UI refresh only; it does not fetch new provider data. Provider synchronization remains an explicit operator action through the **Sync Public Feeds** button.
+The alert list and source status refresh from the local API every 60 seconds. Separately, the backend runs scheduled provider sync loops by default: GDACS every 6 minutes and USGS every 1 minute. Operators can also trigger an immediate sync with **Sync Public Feeds**. The browser refresh only reloads local API data; it does not itself fetch provider feeds.
 
 All alert records remain external, unverified reports until an operator independently verifies them. The assessment panel shows per-agent findings and limitations; it does not create an incident or authorize a response.
 
