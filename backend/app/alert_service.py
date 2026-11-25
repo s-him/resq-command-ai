@@ -3,6 +3,11 @@
 from datetime import datetime, timezone
 
 from app import alert_repository, alert_sources
+from app.config import (
+    ALERT_AUTO_SYNC_ENABLED,
+    GDACS_SYNC_INTERVAL_SECONDS,
+    USGS_SYNC_INTERVAL_SECONDS,
+)
 
 
 DISCLAIMER = (
@@ -100,11 +105,15 @@ def list_source_statuses() -> list[dict]:
     statuses = []
     for source, metadata in SOURCE_CATALOG.items():
         latest = alert_repository.latest_sync_for_source(source)
+        configured_interval = (
+            GDACS_SYNC_INTERVAL_SECONDS if source == "gdacs"
+            else USGS_SYNC_INTERVAL_SECONDS
+        )
         statuses.append(
             {
                 "source": source,
                 **metadata,
-                "last_sync": latest,
+                "automatic_sync_enabled": ALERT_AUTO_SYNC_ENABLED,\n                "configured_sync_interval_seconds": configured_interval if ALERT_AUTO_SYNC_ENABLED else None,\n                "last_sync": latest,
             }
         )
     return statuses
