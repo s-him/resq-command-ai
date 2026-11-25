@@ -823,6 +823,30 @@ def _migration_007_create_response_plan_simulation_tables(
     )
 
 
+
+def _migration_008_link_reviewed_alerts_to_incidents(
+    connection: sqlite3.Connection,
+) -> None:
+    """Add an optional one-way link from a reviewed external alert to its incident."""
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(external_alerts)").fetchall()
+    }
+    if "linked_incident_id" not in columns:
+        connection.execute(
+            "ALTER TABLE external_alerts ADD COLUMN linked_incident_id "
+            "INTEGER REFERENCES incidents (id)"
+        )
+    if "linked_at" not in columns:
+        connection.execute(
+            "ALTER TABLE external_alerts ADD COLUMN linked_at TEXT"
+        )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_alerts_linked_incident "
+        "ON external_alerts (linked_incident_id)"
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
@@ -831,6 +855,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (5, "005_create_alert_assessments", _migration_005_create_alert_assessments),
     (6, "006_add_resource_coordinates_and_match_distances", _migration_006_add_resource_coordinates_and_match_distances),
     (7, "007_create_response_plan_simulation_tables", _migration_007_create_response_plan_simulation_tables),
+    (8, "008_link_reviewed_alerts_to_incidents", _migration_008_link_reviewed_alerts_to_incidents),
 ]
 
 
