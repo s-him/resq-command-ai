@@ -11,8 +11,6 @@ on:
       - feature/alert-intelligence-dashboard
       - feature/reviewed-alert-to-incident
       - feature/automatic-alert-sync
-      - feature/reviewed-alert-to-incident
-      - feature/automatic-alert-sync
   pull_request:
     branches:
       - main
@@ -21,6 +19,7 @@ on:
       - feature/geospatial-resource-planning
       - feature/dispatch-simulation
       - feature/alert-intelligence-dashboard
+      - feature/reviewed-alert-to-incident
 
 permissions:
   contents: read
