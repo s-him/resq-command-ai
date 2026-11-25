@@ -216,6 +216,14 @@ class ResourceCreate(BaseModel):
     quantity_available: int = Field(ge=0, le=1_000_000)
     location: str = Field(min_length=2, max_length=200)
     availability_status: AvailabilityStatus
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def coordinates_must_be_paired(self) -> "ResourceCreate":
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Provide both latitude and longitude, or leave both empty")
+        return self
 
 
 class Resource(BaseModel):
@@ -228,6 +236,21 @@ class Resource(BaseModel):
     location: str
     availability_status: AvailabilityStatus
     created_at: datetime
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class NearbyResource(Resource):
+    distance_km: float
+
+
+class NearbyResourceList(BaseModel):
+    latitude: float
+    longitude: float
+    radius_km: float
+    count: int
+    resources: list[NearbyResource]
+    disclaimer: str
 
 
 class RecommendationStatus(str, Enum):
@@ -252,6 +275,8 @@ class RecommendedResourceItem(BaseModel):
     available_quantity: int
     for_help_needed: list[HelpType]
     explanation: str
+    distance_km: float | None = None
+    distance_basis: str = "not_available"
 
 
 class UnavailableNeed(BaseModel):
