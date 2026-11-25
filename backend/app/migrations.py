@@ -674,11 +674,53 @@ def _migration_004_create_external_alert_tables(connection: sqlite3.Connection) 
     )
 
 
+
+def _migration_005_create_alert_assessments(connection: sqlite3.Connection) -> None:
+    """Create immutable snapshots from the specialist-agent assessment pipeline."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alert_assessments (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            external_alert_id       INTEGER NOT NULL,
+            source                  TEXT NOT NULL CHECK (source IN ('gdacs', 'usgs')),
+            source_event_id         TEXT NOT NULL,
+            title                   TEXT NOT NULL,
+            hazard_type             TEXT NOT NULL,
+            engine_version          TEXT NOT NULL,
+            assessment_status       TEXT NOT NULL CHECK (assessment_status = 'completed'),
+            review_priority         TEXT NOT NULL CHECK (
+                review_priority IN (
+                    'urgent_review',
+                    'priority_review',
+                    'routine_review',
+                    'human_interpretation_required'
+                )
+            ),
+            human_review_required   INTEGER NOT NULL CHECK (human_review_required IN (0, 1)),
+            summary                 TEXT NOT NULL,
+            agents_json             TEXT NOT NULL,
+            disclaimer              TEXT NOT NULL,
+            generated_at            TEXT NOT NULL,
+            FOREIGN KEY (external_alert_id) REFERENCES external_alerts (id) ON DELETE RESTRICT
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_alert_assessments_alert_id "
+        "ON alert_assessments (external_alert_id, id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_alert_assessments_priority "
+        "ON alert_assessments (review_priority, id)"
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
     (3, "003_normalize_recommendation_items", _migration_003_normalize_recommendation_items),
     (4, "004_create_external_alert_tables", _migration_004_create_external_alert_tables),
+    (5, "005_create_alert_assessments", _migration_005_create_alert_assessments),
 ]
 
 
