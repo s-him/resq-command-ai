@@ -265,7 +265,7 @@ Straight-line distance is not road distance or travel time. This stage does not 
 
 A response plan can be created only from a resource recommendation that has already been approved by an operator. Creating a plan leaves it pending. A second operator must explicitly approve the plan to move it to `simulated`, which records reservations in a separate simulation ledger. A plan can also be rejected. Completing a simulated plan releases its simulation-only reservations.
 
-**This is not a real dispatch system.** No emergency service is contacted, no team or vehicle is sent, and the physical `resources.quantity_available` value is never modified. Active simulated reservations reduce the `simulation_remaining_quantity` shown in inventory and used by subsequent recommendations, preventing overlapping simulations from overbooking the same registered stock.
+**This is not a real dispatch system.** No emergency service is contacted, no team or vehicle is sent, and the physical `resources.quantity_available` value is never modified. The operator approval is a prototype UI gate; there is no authentication or role-based authorization yet. Active simulated reservations reduce the `simulation_remaining_quantity` shown in inventory and used by subsequent recommendations, preventing overlapping simulations from overbooking the same registered stock.
 
 | Method | URL | Purpose |
 |---|---|---|
