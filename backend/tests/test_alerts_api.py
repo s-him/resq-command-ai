@@ -106,6 +106,22 @@ def test_failed_provider_does_not_cancel_other_provider(client, monkeypatch):
     assert "RuntimeError" in gdacs["last_sync"]["error_message"]
 
 
+
+def test_alert_sources_report_background_sync_configuration(client):
+    from app import config
+
+    response = client.get("/api/alerts/sources")
+
+    assert response.status_code == 200
+    sources = response.json()
+    assert {item["source"] for item in sources} == {"gdacs", "usgs"}
+    for item in sources:
+        assert item["automatic_sync_enabled"] is config.ALERT_AUTO_SYNC_ENABLED
+        if config.ALERT_AUTO_SYNC_ENABLED:
+            assert item["configured_sync_interval_seconds"] >= 30
+        else:
+            assert item["configured_sync_interval_seconds"] is None
+
 def test_review_requires_existing_alert(client):
     response = client.post(
         "/api/alerts/999/review",
