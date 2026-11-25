@@ -51,6 +51,21 @@ export async function reviewAlert(alertId, status, note = "") {
   );
 }
 
+/** 
+ * POST /api/alerts/{id}/promote
+ * The payload is the complete operator-supplied IncidentCreate body.
+ */
+export async function promoteAlertToIncident(alertId, incidentPayload) {
+  return expectObject(
+    await request(`/api/alerts/${alertId}/promote`, {
+      method: "POST",
+      body: incidentPayload,
+    }),
+    "promote reviewed alert",
+    ["alert", "incident", "message", "disclaimer"]
+  );
+}
+
 /** POST /api/alerts/{id}/assessments */
 export async function runAlertAssessment(alertId) {
   return expectObject(
