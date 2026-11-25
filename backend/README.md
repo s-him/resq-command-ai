@@ -578,3 +578,23 @@ Promotion is rejected with HTTP 409 unless the external alert is already `review
 The source alert and incident are updated inside one `BEGIN IMMEDIATE` transaction. The incident gets the existing prototype severity calculation and enters the existing incident priority workflow. The alert stores `linked_incident_id` and `linked_at`; a second promotion is rejected so one external event cannot create duplicate incidents.
 
 The provider is not allowed to invent affected-person counts or help-needed values. An operator must supply or verify those fields. Promotion does not approve a recommendation, allocate resources, or dispatch anyone.
+
+---
+
+## Automatic public-feed synchronization (Stage 7)
+
+On FastAPI startup, the lifespan starts one independent background loop per provider (when enabled). Each loop performs an initial sync, then waits for its configured interval. Defaults: GDACS 360 seconds and USGS 60 seconds. Synchronous network fetches run in worker threads; feed failures are recorded in `alert_sync_runs` and do not stop the other provider loop.
+
+Automatic synchronization is enabled by default. Disable it for offline development:
+
+```bash
+RESQ_ALERT_AUTO_SYNC_ENABLED=false ./run.sh
+```
+
+Override refresh intervals (seconds):
+
+```bash
+RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.sh
+```
+
+Both intervals must be at least 30 seconds. `GET /api/alerts/sources` reports whether auto-sync is enabled and the configured interval. The browser's 60-second refresh only reloads local database content; provider data is refreshed by the backend loops. Manual sync remains available, and syncs for one provider are serialized.
