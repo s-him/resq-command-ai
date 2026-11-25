@@ -132,6 +132,39 @@ def test_simulation_reserves_stock_without_changing_inventory_and_releases_on_co
     assert simulated_two.json()["plan"]["status"] == "simulated"
 
 
+
+def test_simulation_reservations_reduce_remaining_stock_for_inventory_and_new_recommendations(client):
+    resource = create_ambulance(client, 3)
+    first_incident = create_incident(client, "RESERVE-STOCK")
+    first_recommendation = create_approved_recommendation(client, first_incident)
+    first_plan = client.post(
+        f"/api/incidents/{first_incident}/response-plans",
+        json={"recommendation_id": first_recommendation},
+    ).json()
+
+    approved = client.post(
+        f"/api/response-plans/{first_plan['id']}/decision",
+        json={"decision": "approve"},
+    )
+    assert approved.status_code == 200
+
+    inventory = client.get("/api/resources").json()[0]
+    assert inventory["quantity_available"] == 3
+    assert inventory["simulation_reserved_quantity"] == 2
+    assert inventory["simulation_remaining_quantity"] == 1
+
+    second_incident = create_incident(client, "NEW-RECOMMENDATION")
+    second_recommendation = client.post(
+        f"/api/incidents/{second_incident}/recommendation"
+    )
+    assert second_recommendation.status_code == 201
+    item = second_recommendation.json()["items"][0]
+    assert item["resource_id"] == resource["id"]
+    assert item["available_quantity"] == 1
+    assert item["recommended_quantity"] == 1
+    assert second_recommendation.json()["insufficient_needs"][0]["shortfall"] == 1
+
+
 def test_rejecting_plan_does_not_reserve_resources(client):
     create_ambulance(client, 2)
     incident_id = create_incident(client, "REJECT")
