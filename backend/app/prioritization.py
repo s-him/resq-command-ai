@@ -20,7 +20,7 @@ text would put them in the wrong order, so we convert every time to UTC first.
 
 from datetime import datetime, timezone
 
-from app.schemas import Incident, PrioritizedIncident, PriorityInfo
+from app.schemas import AreaPriorityItem, Incident, PrioritizedIncident, PriorityInfo
 
 RANKING_RULES = [
     "1. Higher severity score first.",
@@ -109,3 +109,80 @@ def rank_incidents(incidents: list[Incident]) -> list[PrioritizedIncident]:
         )
     return ranked
 
+
+
+
+AREA_RANKING_RULES = [
+    "1. Highest individual incident severity score in the reported area.",
+    "2. If equal: greater total reported people affected across open incidents.",
+    "3. If still equal: earlier first-reported incident.",
+    "4. If still equal: lower top-incident ID, then normalized area label.",
+]
+
+AREA_DISCLAIMER = (
+    "Area groups use the exact operator/provider location text after trimming and "
+    "case-insensitive matching. No geocoding, administrative-boundary lookup, or "
+    "population dataset is used. People affected are reported estimates. This is "
+    "an academic prioritization aid, not official emergency guidance."
+)
+
+
+def rank_areas(incidents: list[Incident]) -> list[AreaPriorityItem]:
+    """Group open incidents by their reported location label and rank the groups."""
+    grouped: dict[str, dict] = {}
+    for incident in incidents:
+        area = incident.location.strip()
+        key = area.casefold()
+        grouped.setdefault(key, {"area": area, "incidents": []})["incidents"].append(incident)
+
+    aggregates = []
+    for key, group in grouped.items():
+        items = sorted(group["incidents"], key=priority_sort_key)
+        top = items[0]
+        earliest = min(reported_at_utc(item) for item in items)
+        aggregates.append({
+            "key": key,
+            "area": group["area"],
+            "items": items,
+            "top": top,
+            "incident_count": len(items),
+            "people_affected_reported": sum(item.people_affected for item in items),
+            "highest_severity_score": max(item.severity.score for item in items),
+            "earliest_reported_at": earliest,
+        })
+
+    aggregates.sort(
+        key=lambda item: (
+            -item["highest_severity_score"],
+            -item["people_affected_reported"],
+            item["earliest_reported_at"],
+            item["top"].id,
+            item["key"],
+        )
+    )
+
+    ranked: list[AreaPriorityItem] = []
+    for index, item in enumerate(aggregates):
+        rank = index + 1
+        top = item["top"]
+        ranked.append(
+            AreaPriorityItem(
+                rank=rank,
+                area=item["area"],
+                incident_count=item["incident_count"],
+                people_affected_reported=item["people_affected_reported"],
+                highest_severity_score=item["highest_severity_score"],
+                highest_severity_level=top.severity.level,
+                top_incident_id=top.id,
+                incident_ids=[incident.id for incident in item["items"]],
+                earliest_reported_at=item["earliest_reported_at"],
+                explanation=(
+                    f"Area rank #{rank}: highest individual incident score "
+                    f"{item['highest_severity_score']}/100, "
+                    f"{item['people_affected_reported']} reported people affected "
+                    f"across {item['incident_count']} open incident(s). "
+                    "Area grouping uses the reported location label only."
+                ),
+            )
+        )
+    return ranked

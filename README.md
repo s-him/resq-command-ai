@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`010`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`012`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -36,7 +36,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001-010)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-012)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -49,7 +49,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 170 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # Backend pytest suite (current count reported by CI) (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -115,7 +115,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`011` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`012` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields; existing incidents are rescored once under the new rules version without losing their original incident data.
 
 ---
 
@@ -415,3 +415,25 @@ uvicorn app.main:app --reload
 Every provider response must be JSON and pass its agent's Pydantic schema. A disabled provider, missing configuration, HTTP error, timeout, malformed JSON, or schema-validation failure triggers deterministic fallback. Do not put real API keys in source control, screenshots, logs, or issue reports.
 
 **Safety boundary:** LLM output is a suggestion only. It cannot create/modify incidents, change severity scores or priority order, reserve stock, approve a recommendation, create a response plan, or dispatch resources. Phase 1 remains advisory; automatic simulated dispatch is a separate later phase and must retain explicit safety controls.
+
+
+---
+
+## Severity rules v2 and affected-area priority (Phase 2)
+
+Severity remains a transparent **0–100 prototype estimate**, not a calibrated probability or official emergency instruction. Rules version \`demo-rules-v2\` adds four evidence dimensions to the existing people/help factors:
+
+| Factor | Maximum | Rule summary |
+|---|---:|---|
+| People affected | 35 | Reported people-count bands |
+| Immediate help | 20 | No immediate need: 5; one immediate type: 15; multiple: 20 |
+| Hazard type | 10 | Small declared-category baseline weight |
+| Hazard signal | 15 | Strongest supported provider alert level or hazard measurement |
+| Event/report recency | 15 | Under 1 hour: 15; up to 6 hours: 12; up to 24 hours: 9; up to 72 hours: 5; older/missing: 0 |
+| Vulnerable population | 5 | Explicit hospital, school, elderly, child, infant or care-setting terms in report text |
+
+Hazard signal bands include GDACS-style \`green\` / \`orange\` / \`red\` alert levels, USGS-style earthquake magnitudes, cyclone category/wind measurements, and flood-water depth with supported units. If both a provider alert level and magnitude are supplied, the strongest supported signal is used once, not added twice. Unsupported units are stored for context and receive no invented points.
+
+Open incidents retain the deterministic order **severity score → people affected → earlier report time → ID**. The new \`GET /api/incidents/areas/priority\` endpoint groups open incidents by the recorded location string (trimmed and matched case-insensitively), then ranks areas by highest individual incident score, total reported people affected, earliest report, and top incident ID. It does not geocode locations, infer administrative boundaries, or query population data.
+
+Older incidents with a previous or missing rules version are recalculated at startup using the stored incident fields and migration 012 metadata columns. No incident is deleted. The new area view is shown on the main dashboard and can be refreshed with the rest of the dashboard data.

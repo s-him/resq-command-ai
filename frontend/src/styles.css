@@ -2924,3 +2924,15 @@ h4 {
   .agent-run-card { padding: 12px; }
   .agent-result-heading { align-items: flex-start; }
 }
+
+
+/* Affected-area priority aggregate */
+.area-priority-note {
+  margin: -4px 0 14px;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.area-priority-table tbody tr {
+  cursor: pointer;
+}

@@ -48,15 +48,15 @@ def test_empty_list(client):
 
 
 def test_higher_score_comes_first(client):
-    low = create(client, 5, ["food"])  # 10 + 10 = 20
-    critical = create(client, 300, ["rescue", "medical"])  # 50 + 40 = 90
-    high = create(client, 120, ["medical"])  # 40 + 30 = 70
+    low = create(client, 5, ["food"])  # 8 + 5 + 8 = 21
+    critical = create(client, 300, ["rescue", "medical"])  # 30 + 20 + 8 = 58
+    high = create(client, 120, ["medical"])  # 25 + 15 + 8 = 48
 
     assert priority_ids(client) == [critical, high, low]
 
 
 def test_same_score_more_people_first(client):
-    # Both score 55 (10-49 people = 25 points, one immediate help type = 30 points)
+    # Both score 41 (18 people + 15 immediate help + 8 flood; report is older than 72h).
     fewer = create(client, 12, ["medical"])
     more = create(client, 40, ["rescue"])
 
@@ -87,9 +87,9 @@ def test_complete_tie_lower_id_first(client):
 
 
 def test_people_affected_does_not_beat_a_higher_score(client):
-    # 900 people but basic needs only: 50 + 10 = 60
+    # 900 people but basic needs only: 30 + 5 + 8 = 43
     many_people = create(client, 900, ["food"])
-    # 60 people with two immediate help types: 40 + 40 = 80
+    # 60 people with two immediate help types: 25 + 20 + 8 = 53
     fewer_people = create(client, 60, ["rescue", "medical"])
 
     assert priority_ids(client) == [fewer_people, many_people]
@@ -112,18 +112,18 @@ def test_resolved_and_closed_incidents_are_left_out(client, temp_database):
 
 
 def test_each_incident_has_rank_and_explanation(client):
-    create(client, 120, ["medical"])  # 70
-    create(client, 40, ["rescue"])  # 55
-    create(client, 12, ["medical"])  # 55
+    create(client, 120, ["medical"])  # 48
+    create(client, 40, ["rescue"])  # 41
+    create(client, 12, ["medical"])  # 41
 
     incidents = client.get("/api/incidents/priority").json()["incidents"]
 
     assert [incident["priority"]["rank"] for incident in incidents] == [1, 2, 3]
-    assert "higher severity score (70 vs 55)" in incidents[0]["priority"]["explanation"]
+    assert "higher severity score (48 vs 41)" in incidents[0]["priority"]["explanation"]
     assert "more people affected (40 vs 12)" in incidents[1]["priority"]["explanation"]
     assert "Lowest priority" in incidents[2]["priority"]["explanation"]
     # The full incident, including severity, is still included.
-    assert incidents[0]["severity"]["level"] == "High"
+    assert incidents[0]["severity"]["level"] == "Medium"
 
 
 def test_explanation_mentions_earlier_report_for_time_tie(client):

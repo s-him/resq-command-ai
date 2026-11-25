@@ -7,7 +7,7 @@ with a clear error message - our code never sees the bad data.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -101,17 +101,44 @@ class IncidentCreate(BaseModel):
     description: str = Field(min_length=10, max_length=1000)
     location: str = Field(min_length=2, max_length=200)
     reported_at: datetime
+    event_at: datetime | None = None
     people_affected: int = Field(ge=0, le=1_000_000)
     help_needed: list[HelpType] = Field(min_length=1, max_length=len(HelpType))
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
+    hazard_magnitude: float | None = Field(default=None, ge=0, le=100000)
+    hazard_magnitude_unit: str | None = Field(default=None, min_length=1, max_length=30)
+    provider_alert_level: Literal["red", "orange", "green"] | None = None
+
+    @field_validator("hazard_magnitude_unit")
+    @classmethod
+    def normalize_hazard_magnitude_unit(cls, value: str | None) -> str | None:
+        return value.strip().lower() if value else None
+
+    @field_validator("provider_alert_level", mode="before")
+    @classmethod
+    def normalize_provider_alert_level(cls, value: str | None) -> str | None:
+        return value.strip().lower() if value else None
 
     @model_validator(mode="after")
     def coordinates_must_be_paired(self) -> "IncidentCreate":
         """If one coordinate is provided, the other must be provided too."""
         if (self.latitude is None) != (self.longitude is None):
             raise ValueError("Provide both latitude and longitude, or leave both empty")
+        if (self.hazard_magnitude is None) != (self.hazard_magnitude_unit is None):
+            raise ValueError("Provide both hazard_magnitude and hazard_magnitude_unit, or leave both empty")
         return self
+
+    @field_validator("event_at")
+    @classmethod
+    def event_at_not_in_future(cls, value: datetime | None) -> datetime | None:
+        """An event time cannot be materially in the future."""
+        if value is None:
+            return None
+        now = datetime.now(value.tzinfo) if value.tzinfo else datetime.now()
+        if value > now + timedelta(minutes=5):
+            raise ValueError("event_at cannot be in the future")
+        return value
 
     @field_validator("reported_at")
     @classmethod
@@ -139,6 +166,7 @@ class Incident(BaseModel):
     description: str
     location: str
     reported_at: datetime
+    event_at: datetime | None = None
     people_affected: int
     help_needed: list[HelpType]
     status: IncidentStatus
@@ -146,6 +174,9 @@ class Incident(BaseModel):
     severity: SeverityAssessment
     latitude: float | None = None
     longitude: float | None = None
+    hazard_magnitude: float | None = None
+    hazard_magnitude_unit: str | None = None
+    provider_alert_level: Literal["red", "orange", "green"] | None = None
 
 
 
@@ -209,6 +240,30 @@ class PriorityList(BaseModel):
     disclaimer: str
     count: int
     incidents: list[PrioritizedIncident]
+
+
+class AreaPriorityItem(BaseModel):
+    """One reported-location group in the affected-area priority view."""
+
+    rank: int
+    area: str
+    incident_count: int
+    people_affected_reported: int
+    highest_severity_score: int
+    highest_severity_level: SeverityLevel
+    top_incident_id: int
+    incident_ids: list[int]
+    earliest_reported_at: datetime
+    explanation: str
+
+
+class AreaPriorityList(BaseModel):
+    """Area aggregation of open incidents using reported location labels."""
+
+    ranking_rules: list[str]
+    disclaimer: str
+    count: int
+    areas: list[AreaPriorityItem]
 
 
 class ResourceType(str, Enum):

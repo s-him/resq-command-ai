@@ -30,6 +30,7 @@ from app.schemas import (
     IncidentStatusUpdate,
     IncidentUpdateEntry,
     IncidentUpdateList,
+    AreaPriorityList,
     PriorityList,
     Recommendation,
 )
@@ -68,6 +69,18 @@ def list_open_incidents_by_priority() -> PriorityList:
         disclaimer=prioritization.DISCLAIMER,
         count=len(ranked),
         incidents=ranked,
+    )
+
+
+@router.get("/areas/priority", response_model=AreaPriorityList)
+def list_areas_by_priority() -> AreaPriorityList:
+    """Rank reported location groups using open-incident urgency and total people."""
+    ranked = prioritization.rank_areas(incident_repository.list_open_incidents())
+    return AreaPriorityList(
+        ranking_rules=prioritization.AREA_RANKING_RULES,
+        disclaimer=prioritization.AREA_DISCLAIMER,
+        count=len(ranked),
+        areas=ranked,
     )
 
 

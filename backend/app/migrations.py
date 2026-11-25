@@ -933,6 +933,30 @@ def _migration_011_create_incident_agent_runs(connection: sqlite3.Connection) ->
     )
 
 
+def _migration_012_add_incident_event_and_hazard_signal_fields(connection: sqlite3.Connection) -> None:
+    """Add optional event time and provider/magnitude inputs used by severity rules v2."""
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(incidents)").fetchall()
+    }
+    if "event_at" not in columns:
+        connection.execute("ALTER TABLE incidents ADD COLUMN event_at TEXT")
+    if "hazard_magnitude" not in columns:
+        connection.execute(
+            "ALTER TABLE incidents ADD COLUMN hazard_magnitude REAL "
+            "CHECK (hazard_magnitude IS NULL OR hazard_magnitude >= 0)"
+        )
+    if "hazard_magnitude_unit" not in columns:
+        connection.execute(
+            "ALTER TABLE incidents ADD COLUMN hazard_magnitude_unit TEXT"
+        )
+    if "provider_alert_level" not in columns:
+        connection.execute(
+            "ALTER TABLE incidents ADD COLUMN provider_alert_level TEXT "
+            "CHECK (provider_alert_level IS NULL OR provider_alert_level IN ('red', 'orange', 'green'))"
+        )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
@@ -945,6 +969,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (9, "009_create_resource_change_history", _migration_009_create_resource_change_history),
     (10, "010_create_incident_updates", _migration_010_create_incident_updates),
     (11, "011_create_incident_agent_runs", _migration_011_create_incident_agent_runs),
+    (12, "012_add_incident_event_and_hazard_signal_fields", _migration_012_add_incident_event_and_hazard_signal_fields),
 ]
 
 

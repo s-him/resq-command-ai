@@ -96,3 +96,13 @@ export async function getIncidentAgentTrace(incidentId) {
     ["incident_id", "count", "traces", "disclaimer"]
   );
 }
+
+
+/** GET /api/incidents/areas/priority -> grouped open incident priority by reported location. */
+export async function getAreaPriority() {
+  return expectObject(
+    await request("/api/incidents/areas/priority"),
+    "affected-area priority",
+    ["ranking_rules", "count", "areas", "disclaimer"]
+  );
+}

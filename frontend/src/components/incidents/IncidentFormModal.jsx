@@ -43,10 +43,14 @@ function emptyForm() {
     location: "",
     people_affected: "25",
     reported_at: toLocalInputValue(),
+    event_at: "",
     help_needed: ["medical"],
     description: "",
     latitude: "",
     longitude: "",
+    hazard_magnitude: "",
+    hazard_magnitude_unit: "",
+    provider_alert_level: "none",
   };
 }
 
@@ -65,6 +69,7 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
     setFieldErrors({});
     if (initialPreset && DEMO_PRESETS[initialPreset]) {
       setForm({
+        ...emptyForm(),
         ...DEMO_PRESETS[initialPreset],
         reported_at: toLocalInputValue(),
       });
@@ -79,6 +84,7 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
     setErrorMessage("");
     setFieldErrors({});
     setForm({
+      ...emptyForm(),
       ...preset,
       reported_at: toLocalInputValue(),
     });
@@ -114,6 +120,14 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
     }
     if (form.help_needed.length === 0) {
       errs.help_needed = "Select at least one requested assistance category.";
+    }
+    const hasMagnitude = form.hazard_magnitude.trim() !== "";
+    const hasMagnitudeUnit = form.hazard_magnitude_unit.trim() !== "";
+    if (hasMagnitude !== hasMagnitudeUnit) {
+      errs.hazard_magnitude = "Provide both a hazard measurement and its unit, or leave both blank.";
+      errs.hazard_magnitude_unit = "Provide both a hazard measurement and its unit, or leave both blank.";
+    } else if (hasMagnitude && (!Number.isFinite(Number(form.hazard_magnitude)) || Number(form.hazard_magnitude) < 0)) {
+      errs.hazard_magnitude = "Enter a non-negative numeric measurement.";
     }
     const hasLat = form.latitude.trim() !== "";
     const hasLng = form.longitude.trim() !== "";
@@ -155,9 +169,19 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
         people_affected: Number(form.people_affected),
         help_needed: form.help_needed,
       };
+      if (form.event_at.trim() !== "") {
+        payload.event_at = new Date(form.event_at).toISOString();
+      }
       if (form.latitude.trim() !== "" && form.longitude.trim() !== "") {
         payload.latitude = Number(form.latitude);
         payload.longitude = Number(form.longitude);
+      }
+      if (form.hazard_magnitude.trim() !== "" && form.hazard_magnitude_unit.trim() !== "") {
+        payload.hazard_magnitude = Number(form.hazard_magnitude);
+        payload.hazard_magnitude_unit = form.hazard_magnitude_unit.trim();
+      }
+      if (form.provider_alert_level !== "none") {
+        payload.provider_alert_level = form.provider_alert_level;
       }
 
       const created = await createIncident(payload);
@@ -185,7 +209,7 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
       onClose={submitting ? undefined : onClose}
       size="lg"
       title="Report Disaster Incident"
-      subtitle="Submit a manual or sample incident report for rule-based severity evaluation."
+      subtitle="Submit a manual or sample incident report for six-factor prototype severity evaluation."
       footer={
         <>
           <button
@@ -279,7 +303,7 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
             onChange={(e) => updateField("people_affected", e.target.value)}
             disabled={submitting}
           />
-          <span className="field-hint">Whole number from 0 to 1,000,000 (contributes 0–60 pts).</span>
+          <span className="field-hint">Whole number from 0 to 1,000,000 (contributes 0–35 prototype points).</span>
           {fieldErrors.people_affected && (
             <span className="field-error">{fieldErrors.people_affected}</span>
           )}
@@ -305,6 +329,19 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
         </div>
 
         <div className="form-field">
+          <label htmlFor="inc-event">Event Time (optional)</label>
+          <input
+            id="inc-event"
+            type="datetime-local"
+            value={form.event_at}
+            onChange={(e) => updateField("event_at", e.target.value)}
+            disabled={submitting}
+          />
+          <span className="field-hint">When the event happened, if known. The report time remains separate.</span>
+          {fieldErrors.event_at && <span className="field-error">{fieldErrors.event_at}</span>}
+        </div>
+
+        <div className="form-field">
           <label htmlFor="inc-reported">
             Reported Time <span className="req-star">*</span>
           </label>
@@ -320,6 +357,62 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
           {fieldErrors.reported_at && (
             <span className="field-error">{fieldErrors.reported_at}</span>
           )}
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="inc-magnitude">Hazard Measurement (optional)</label>
+          <input
+            id="inc-magnitude"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="e.g. 6.4"
+            value={form.hazard_magnitude}
+            onChange={(e) => updateField("hazard_magnitude", e.target.value)}
+            disabled={submitting}
+          />
+          <span className="field-hint">Use a value reported by the source, not a guess.</span>
+          {fieldErrors.hazard_magnitude && <span className="field-error">{fieldErrors.hazard_magnitude}</span>}
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="inc-magnitude-unit">Measurement Unit</label>
+          <select
+            id="inc-magnitude-unit"
+            value={form.hazard_magnitude_unit}
+            onChange={(e) => updateField("hazard_magnitude_unit", e.target.value)}
+            disabled={submitting}
+          >
+            <option value="">Select unit</option>
+            <option value="magnitude">Magnitude (earthquake)</option>
+            <option value="category">Category (cyclone)</option>
+            <option value="km/h">Wind speed (km/h)</option>
+            <option value="knots">Wind speed (knots)</option>
+            <option value="m/s">Wind speed (m/s)</option>
+            <option value="mph">Wind speed (mph)</option>
+            <option value="m">Flood-water depth (metres)</option>
+            <option value="cm">Flood-water depth (centimetres)</option>
+            <option value="mm">Flood-water depth (millimetres)</option>
+            <option value="ft">Flood-water depth (feet)</option>
+          </select>
+          <span className="field-hint">Earthquake magnitude, cyclone wind/category, or flood-water depth. Unsupported units are preserved without invented points.</span>
+          {fieldErrors.hazard_magnitude_unit && <span className="field-error">{fieldErrors.hazard_magnitude_unit}</span>}
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="inc-provider-alert">Provider Alert Level (optional)</label>
+          <select
+            id="inc-provider-alert"
+            value={form.provider_alert_level}
+            onChange={(e) => updateField("provider_alert_level", e.target.value)}
+            disabled={submitting}
+          >
+            <option value="none">Not supplied</option>
+            <option value="green">Green</option>
+            <option value="orange">Orange</option>
+            <option value="red">Red</option>
+          </select>
+          <span className="field-hint">Only use an alert level present in the source report.</span>
         </div>
 
         <div className="form-field form-field-full">
@@ -348,7 +441,7 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
             })}
           </div>
           <span className="field-hint">
-            Select at least one. Immediate life-safety assistance types contribute 30–40 severity
+            Select at least one. Immediate life-safety assistance types contribute 15–20 prototype
             points.
           </span>
           {fieldErrors.help_needed && (

@@ -2,6 +2,7 @@ import React from "react";
 import PriorityQueueTable from "../components/dashboard/PriorityQueueTable";
 import StatCard from "../components/dashboard/StatCard";
 import WorkflowOverview from "../components/dashboard/WorkflowOverview";
+import AreaPriorityTable from "../components/dashboard/AreaPriorityTable";
 import { SkeletonStatCards } from "../components/common/Skeleton";
 import Icon from "../components/common/Icon";
 import IncidentMapPanel from "../components/incidents/IncidentMapPanel";
@@ -12,6 +13,7 @@ import { formatDateTime, formatNumber } from "../utils/format";
 export default function Dashboard({ onOpenCreateIncident }) {
   const {
     priority,
+    areaPriority,
     incidents,
     resources,
     recommendations,
@@ -127,6 +129,11 @@ export default function Dashboard({ onOpenCreateIncident }) {
         prioritySlice={priority}
         onRetry={refreshAll}
         onOpenCreateIncident={onOpenCreateIncident}
+      />
+
+      <AreaPriorityTable
+        areaPrioritySlice={areaPriority}
+        onRetry={refreshAll}
       />
 
       <WorkflowOverview

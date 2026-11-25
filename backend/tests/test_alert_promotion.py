@@ -112,6 +112,15 @@ def test_reviewed_alert_promotes_to_open_incident_and_is_linked(client, monkeypa
     assert incident["help_needed"] == ["evacuation", "medical"]
     assert incident["latitude"] == 26.9
     assert incident["longitude"] == 75.8
+    from datetime import datetime
+
+    stored_event_at = datetime.fromisoformat(incident["event_at"].replace("Z", "+00:00"))
+    imported_event_at = datetime.fromisoformat(alert["event_at"].replace("Z", "+00:00"))
+    assert stored_event_at == imported_event_at
+    assert incident["hazard_magnitude"] == 3.2
+    assert incident["hazard_magnitude_unit"] == "m"
+    assert incident["provider_alert_level"] == "orange"
+    assert incident["severity"]["factors"][3]["points"] == 15
     assert incident["severity"]["score"] > 0
     assert linked_alert["review_status"] == "reviewed"
     assert linked_alert["linked_incident_id"] == incident["id"]

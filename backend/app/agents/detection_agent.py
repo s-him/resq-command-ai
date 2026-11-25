@@ -46,6 +46,7 @@ class DetectionAgent(AgentBase):
                     "location": incident.location,
                     "people_affected_reported": incident.people_affected,
                     "reported_at": incident.reported_at.isoformat(),
+                    "event_at": incident.event_at.isoformat() if incident.event_at else None,
                     "latitude": incident.latitude,
                     "longitude": incident.longitude,
                     "status": incident.status.value,

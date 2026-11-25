@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { getHealth } from "../services/healthService";
-import { getIncidentHistory, getPriorityQueue, listIncidents } from "../services/incidentService";
+import { getAreaPriority, getIncidentHistory, getPriorityQueue, listIncidents } from "../services/incidentService";
 import { listResources } from "../services/resourceService";
 
 /**
@@ -17,6 +17,7 @@ const initialSlice = (data) => ({ data, loading: true, error: null });
 export function DataProvider({ children }) {
   const [health, setHealth] = useState({ state: "checking", info: null, checkedAt: null, error: null });
   const [priority, setPriority] = useState(initialSlice(null));
+  const [areaPriority, setAreaPriority] = useState(initialSlice(null));
   const [incidents, setIncidents] = useState(initialSlice([]));
   const [resources, setResources] = useState(initialSlice([]));
   const [histories, setHistories] = useState({ data: {}, loading: true, error: null, failedIds: [] });
@@ -67,10 +68,16 @@ export function DataProvider({ children }) {
     try {
       const healthCheck = checkHealth();
       setPriority((s) => ({ ...s, loading: true }));
+      setAreaPriority((s) => ({ ...s, loading: true }));
       setIncidents((s) => ({ ...s, loading: true }));
       setResources((s) => ({ ...s, loading: true }));
 
-      const [p, i, r] = await Promise.allSettled([getPriorityQueue(), listIncidents(), listResources()]);
+      const [p, i, r, a] = await Promise.allSettled([
+        getPriorityQueue(),
+        listIncidents(),
+        listResources(),
+        getAreaPriority(),
+      ]);
 
       if (p.status === "fulfilled") setPriority({ data: p.value, loading: false, error: null });
       else setPriority((s) => ({ ...s, loading: false, error: p.reason }));
@@ -81,11 +88,14 @@ export function DataProvider({ children }) {
       if (r.status === "fulfilled") setResources({ data: r.value, loading: false, error: null });
       else setResources((s) => ({ ...s, loading: false, error: r.reason }));
 
+      if (a.status === "fulfilled") setAreaPriority({ data: a.value, loading: false, error: null });
+      else setAreaPriority((s) => ({ ...s, loading: false, error: a.reason }));
+
       if (i.status === "fulfilled") await loadHistories(i.value);
       else setHistories((s) => ({ ...s, loading: false, error: i.reason }));
 
       await healthCheck;
-      if ([p, i, r].every((result) => result.status === "fulfilled")) setLastUpdated(new Date());
+      if ([p, i, r, a].every((result) => result.status === "fulfilled")) setLastUpdated(new Date());
     } finally {
       inFlight.current = false;
       setRefreshing(false);
@@ -117,6 +127,7 @@ export function DataProvider({ children }) {
   const value = {
     health,
     priority,
+    areaPriority,
     incidents,
     resources,
     histories,
