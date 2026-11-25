@@ -136,7 +136,7 @@ export default function Dashboard({ onOpenCreateIncident }) {
         decisionCount={actions.length}
       />
 
-      <IncidentMapPanel incidents={openIncidents} />
+      <IncidentMapPanel incidents={openIncidents} resources={resources.data} />
     </div>
   );
 }
