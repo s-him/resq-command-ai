@@ -10,6 +10,8 @@ on:
       - feature/dispatch-simulation
       - feature/alert-intelligence-dashboard
       - feature/reviewed-alert-to-incident
+      - feature/reviewed-alert-to-incident
+      - feature/automatic-alert-sync
   pull_request:
     branches:
       - main
