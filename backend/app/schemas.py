@@ -7,6 +7,7 @@ with a clear error message - our code never sees the bad data.
 """
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -240,6 +241,61 @@ class Resource(BaseModel):
     longitude: float | None = None
     simulation_reserved_quantity: int = 0
     simulation_remaining_quantity: int | None = None
+
+
+
+class ResourceUpdate(BaseModel):
+    """Partial resource maintenance request. Only supplied fields are changed."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    resource_type: ResourceType | None = None
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    quantity_available: int | None = Field(default=None, ge=0, le=1_000_000)
+    location: str | None = Field(default=None, min_length=2, max_length=200)
+    availability_status: AvailabilityStatus | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    note: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_update_fields(self) -> "ResourceUpdate":
+        editable_fields = {
+            "resource_type",
+            "name",
+            "quantity_available",
+            "location",
+            "availability_status",
+            "latitude",
+            "longitude",
+        }
+        supplied = editable_fields.intersection(self.model_fields_set)
+        if not supplied:
+            raise ValueError("Provide at least one resource field to update")
+        coordinates_supplied = {"latitude", "longitude"}.intersection(self.model_fields_set)
+        if coordinates_supplied and coordinates_supplied != {"latitude", "longitude"}:
+            raise ValueError("Provide both latitude and longitude, or update neither")
+        return self
+
+    @field_validator("note")
+    @classmethod
+    def blank_note_as_none(cls, value: str | None) -> str | None:
+        return value or None
+
+
+class ResourceHistoryEntry(BaseModel):
+    id: int
+    resource_id: int
+    action: str
+    changes: dict[str, dict[str, Any]]
+    note: str | None = None
+    created_at: datetime
+
+
+class ResourceHistory(BaseModel):
+    resource_id: int
+    count: int
+    entries: list[ResourceHistoryEntry]
 
 
 class NearbyResource(Resource):
