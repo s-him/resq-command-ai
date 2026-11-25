@@ -12,10 +12,11 @@ def evaluate_location(alert: dict[str, Any]) -> dict[str, Any]:
     longitude = alert.get("longitude")
     has_coordinates = latitude is not None and longitude is not None
 
+    has_text_location = bool(alert.get("location") or alert.get("country"))
     if has_coordinates:
         location_status = "coordinates_available"
         location_summary = f"Coordinates: {latitude}, {longitude}"
-    elif alert.get("location") or alert.get("country"):
+    elif has_text_location:
         location_status = "text_location_only"
         location_summary = alert.get("location") or alert.get("country")
     else:
@@ -25,7 +26,7 @@ def evaluate_location(alert: dict[str, Any]) -> dict[str, Any]:
     return {
         "agent": AGENT_NAME,
         "version": AGENT_VERSION,
-        "status": "completed" if has_coordinates or location_summary else "insufficient_data",
+        "status": "completed" if has_coordinates or has_text_location else "insufficient_data",
         "location_status": location_status,
         "latitude": latitude,
         "longitude": longitude,
