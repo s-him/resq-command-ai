@@ -15,7 +15,7 @@ from app import incident_repository
 from app.config import APP_DESCRIPTION, APP_NAME, APP_VERSION
 from app.database import init_database
 from app.errors import validation_error_handler
-from app.routers import alerts, assessments, health, incidents, recommendations, resources, response_plans
+from app.routers import alerts, assessments, health, incidents, recommendations, resources, response_plans, response_plans
 
 
 @asynccontextmanager
@@ -55,6 +55,7 @@ app.include_router(incidents.router)
 app.include_router(resources.router)
 app.include_router(recommendations.router)
 app.include_router(response_plans.router)
+app.include_router(response_plans.router)
 
 
 @app.get("/", tags=["Root"])
@@ -68,6 +69,7 @@ def root() -> dict:
         "alerts": "/api/alerts",
         "priority": "/api/incidents/priority",
         "resources": "/api/resources",
+        "response_plans": "/api/response-plans",
         "response_plans": "/api/response-plans",
     }
 
