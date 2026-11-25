@@ -579,7 +579,7 @@ export default function Alerts() {
                     )}
                     {alert.linked_incident_id && (
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate(`#/incidents/${alert.linked_incident_id}`)}>
-                        <Icon name="externalLink" size={14} />
+                        <Icon name="arrowRight" size={14} />
                         <span>Open linked incident {incidentCode(alert.linked_incident_id)}</span>
                       </button>
                     )}
