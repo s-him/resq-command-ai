@@ -841,7 +841,9 @@ h4 {
 
 .status-open,
 .status-available,
-.status-approved {
+.status-approved,
+.status-simulated,
+.status-completed {
   background-color: #F4FBFA;
   color: #0F6E66;
   border-color: #B8E2DD;
