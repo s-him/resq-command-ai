@@ -390,7 +390,8 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | `alert_assessments` | Immutable, foreign-key-linked snapshots of the five specialist-agent assessment outputs. |
 | `response_plans` | Human-gated plan state (`pending`, `simulated`, `rejected`, `completed`) linked to an incident and approved recommendation. |
 | `response_plan_items` | Snapshot of proposed resource assignments; reservation quantity is counted only while the parent plan is `simulated`. |
-| `response_plan_actions` | Append-only audit events for creation, simulation approval/rejection, and completion. |\n| `resource_change_history` | Registration/update audit records with JSON before/after values, optional note, timestamp, and a foreign key to `resources`. |
+| `response_plan_actions` | Append-only audit events for creation, simulation approval/rejection, and completion. |
+| `resource_change_history` | Registration/update audit records with JSON before/after values, optional note, timestamp, and a foreign key to `resources`. |
 | `schema_migrations` | Tracks applied migration versions (`version` PK, `name`, `applied_at`). |
 
 ### How to back up the database before upgrading
