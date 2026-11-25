@@ -192,11 +192,11 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
 
       <div className="map-shell">
         <div ref={containerRef} className="leaflet-box" />
-        {mapped.length === 0 && (
+        {mapped.length === 0 && mappedResources.length === 0 && (
           <div className="map-empty-overlay">
             <Icon name="mapPin" size={20} />
             <div>
-              <strong>No valid incident coordinates are currently available</strong>
+              <strong>No valid incident or resource coordinates are currently available</strong>
               <p>
                 {incidents.length === 0 && resources.length === 0
                   ? "Register a resource or report an incident with coordinates to display map markers here."
