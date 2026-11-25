@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, versioned database migrations (`001`–`004`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, versioned database migrations (`001`–`005`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -25,6 +25,10 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── alert_repository.py        # External-alert persistence, deduplication and review
 │   │   ├── alert_service.py           # Feed synchronization orchestration
 │   │   ├── alert_schemas.py           # External-alert API contracts
+│   │   ├── agents/                    # Evidence, hazard, recency, location and review agents
+│   │   ├── assessment_orchestrator.py # Runs agents and combines their findings
+│   │   ├── assessment_repository.py   # Persists immutable assessment snapshots
+│   │   ├── assessment_schemas.py      # Assessment API contracts
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
@@ -40,7 +44,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/incidents, /api/resources, /api/recommendations
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 115 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 131 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -206,3 +210,37 @@ npm run build
    - If you changed the backend port, update `VITE_API_BASE_URL` in `frontend/.env` and restart `npm run dev`.
 4. **CORS errors in the browser console:**
    `backend/app/main.py` allows `http://localhost:5173` and `http://127.0.0.1:5173`. Always open the frontend on port `5173` (Vite's configured port in `frontend/vite.config.js`). If port `5173` is already in use by another process, stop the old process so Vite binds to `5173`.
+
+---
+
+## Multi-agent alert assessment (Stage 2)
+
+An imported external alert can be assessed with five explainable specialist agents:
+
+1. Evidence quality — checks which source fields are present. This is completeness, not truth or probability.
+2. Hazard signal — preserves GDACS alert levels and USGS magnitude/depth without inventing a universal severity scale.
+3. Event recency — checks the age and plausibility of the provider event timestamp.
+4. Location evidence — records coordinate availability and explicitly leaves population exposure unknown.
+5. Review coordinator — assigns a conservative human-review queue label and explains why.
+
+Run an assessment:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/alerts/1/assessments
+```
+
+Read assessment history:
+
+```bash
+curl http://127.0.0.1:8000/api/alerts/1/assessments
+```
+
+Read one saved assessment:
+
+```bash
+curl http://127.0.0.1:8000/api/alerts/assessments/1
+```
+
+Each run is saved as an immutable snapshot in `alert_assessments`. The pipeline is currently deterministic and rule-based; it is not a trained ML model or an LLM. It does not create an incident, estimate exposed population, contact responders, allocate supplies, or dispatch teams.
+
+Migration `005` adds the assessment snapshot table and links it to the original external alert.
