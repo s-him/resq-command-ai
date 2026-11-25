@@ -32,6 +32,17 @@ const HAZARD_OPTIONS = [
   "other",
 ];
 
+
+function safeExternalUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function AlertLevel({ level }) {
   if (!level) return <span className="alert-level-badge alert-level-unknown">No level</span>;
   const value = String(level).toLowerCase();
@@ -369,6 +380,7 @@ export default function Alerts() {
           <div className="alert-list">
             {alerts.map((alert) => {
               const assessment = assessments[alert.id];
+              const sourceUrl = safeExternalUrl(alert.source_url);
               const busy = workingAlertId === alert.id;
               return (
                 <article className="alert-card" key={alert.id}>
@@ -396,10 +408,16 @@ export default function Alerts() {
                   </div>
 
                   {alert.description && <p className="alert-description">{alert.description}</p>}
+                  {alert.review_note && (
+                    <div className="notice-box">
+                      <Icon name="info" size={14} />
+                      <div><strong>Saved operator review note</strong><p>{alert.review_note}</p></div>
+                    </div>
+                  )}
 
                   <div className="alert-card-actions">
-                    {alert.source_url && (
-                      <a className="btn btn-secondary btn-sm" href={alert.source_url} target="_blank" rel="noreferrer">
+                    {sourceUrl && (
+                      <a className="btn btn-secondary btn-sm" href={sourceUrl} target="_blank" rel="noopener noreferrer">
                         <Icon name="arrowRight" size={14} />
                         <span>Open source report</span>
                       </a>
