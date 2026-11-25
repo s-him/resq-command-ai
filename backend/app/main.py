@@ -5,17 +5,59 @@ Start the server (from the "backend" folder) with:
     uvicorn app.main:app --reload
 """
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import incident_repository
-from app.config import APP_DESCRIPTION, APP_NAME, APP_VERSION
+from app import alert_service, incident_repository
+from app.config import (\n    ALERT_AUTO_SYNC_ENABLED,\n    APP_DESCRIPTION,\n    APP_NAME,\n    APP_VERSION,\n    GDACS_SYNC_INTERVAL_SECONDS,\n    USGS_SYNC_INTERVAL_SECONDS,\n)
 from app.database import init_database
 from app.errors import validation_error_handler
 from app.routers import alerts, assessments, health, incidents, recommendations, resources, response_plans
+
+
+logger = logging.getLogger(__name__)
+
+
+async def _run_provider_sync_loop(source: str, interval_seconds: int) -> None:
+    """Sync one provider in a worker thread, then wait for its next interval.
+
+    Each provider has its own loop so a slow or failing provider does not
+    delay the other provider. Cancellation stops the loop cleanly on shutdown.
+    """
+    logger.info(
+        "Automatic %s alert sync enabled (interval: %s seconds)",
+        source.upper(),
+        interval_seconds,
+    )
+    while True:
+        try:
+            result = await asyncio.to_thread(alert_service.sync_sources, [source])
+            source_result = result["sources"][0]
+            if source_result["status"] == "failed":
+                logger.warning(
+                    "Automatic %s sync failed: %s",
+                    source.upper(),
+                    source_result["error_message"],
+                )
+            else:
+                logger.info(
+                    "Automatic %s sync complete: fetched=%s new=%s updated=%s",
+                    source.upper(),
+                    source_result["fetched_count"],
+                    source_result["created_count"],
+                    source_result["updated_count"],
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Unexpected automatic %s sync error", source.upper())
+
+        await asyncio.sleep(interval_seconds)
 
 
 @asynccontextmanager
@@ -23,7 +65,29 @@ async def lifespan(app: FastAPI):
     """Code before `yield` runs when the server starts; code after runs on shutdown."""
     init_database()  # create/upgrade tables
     incident_repository.fill_missing_severity()  # score incidents saved before scoring existed
-    yield
+
+    sync_tasks = []
+    if ALERT_AUTO_SYNC_ENABLED:
+        sync_tasks = [
+            asyncio.create_task(
+                _run_provider_sync_loop("gdacs", GDACS_SYNC_INTERVAL_SECONDS),
+                name="gdacs-alert-sync",
+            ),
+            asyncio.create_task(
+                _run_provider_sync_loop("usgs", USGS_SYNC_INTERVAL_SECONDS),
+                name="usgs-alert-sync",
+            ),
+        ]
+    else:
+        logger.info("Automatic alert synchronization is disabled")
+
+    try:
+        yield
+    finally:
+        for task in sync_tasks:
+            task.cancel()
+        if sync_tasks:
+            await asyncio.gather(*sync_tasks, return_exceptions=True)
 
 
 app = FastAPI(
