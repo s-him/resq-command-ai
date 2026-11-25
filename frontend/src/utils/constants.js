@@ -82,6 +82,8 @@ export const STATUS_LABELS = {
   pending: "Pending review",
   approved: "Approved",
   rejected: "Rejected",
+  simulated: "Simulated (reserved)",
+  completed: "Completed",
   // resource availability
   available: "Available",
   limited: "Limited",
