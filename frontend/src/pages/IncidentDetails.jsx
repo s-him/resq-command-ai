@@ -299,7 +299,7 @@ export default function IncidentDetails({ incidentId }) {
               <span>Reopen incident</span>
             </button>
             <button type="button" className="btn btn-primary" onClick={() => handleStatusChange("closed")} disabled={updatingStatus || activeSimulationCount > 0}>
-              <Icon name="lock" size={15} />
+              <Icon name="shield" size={15} />
               <span>{updatingStatus ? "Saving..." : "Close incident"}</span>
             </button>
           </div>
