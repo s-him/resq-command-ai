@@ -7,6 +7,7 @@ with a clear error message - our code never sees the bad data.
 """
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -39,12 +40,7 @@ class HelpType(str, Enum):
 
 
 class IncidentStatus(str, Enum):
-    """Lifecycle status of an incident.
-
-    New incidents are always "open". "resolved" and "closed" are allowed so that
-    such records can be stored and loaded; they are left out of the priority list.
-    (There is no endpoint to change status yet.)
-    """
+    """Lifecycle status of an incident. Only open incidents are priority-ranked."""
 
     OPEN = "open"
     RESOLVED = "resolved"
@@ -152,6 +148,47 @@ class Incident(BaseModel):
     longitude: float | None = None
 
 
+
+class IncidentStatusUpdate(BaseModel):
+    """Request to move an incident through its operator-managed lifecycle."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    status: IncidentStatus
+    note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("note")
+    @classmethod
+    def blank_note_as_none(cls, value: str | None) -> str | None:
+        return value or None
+
+
+class IncidentOperatorNote(BaseModel):
+    """A free-form operational update recorded in the incident timeline."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    note: str = Field(min_length=3, max_length=1000)
+
+
+class IncidentUpdateEntry(BaseModel):
+    id: int
+    incident_id: int
+    event_type: str
+    previous_status: IncidentStatus | None = None
+    new_status: IncidentStatus | None = None
+    note: str | None = None
+    created_at: datetime
+
+
+class IncidentUpdateList(BaseModel):
+    incident_id: int
+    count: int
+    active_simulation_count: int
+    updates: list[IncidentUpdateEntry]
+    disclaimer: str
+
+
 class PriorityInfo(BaseModel):
     """Where an incident sits in the priority list, and why."""
 
@@ -216,6 +253,14 @@ class ResourceCreate(BaseModel):
     quantity_available: int = Field(ge=0, le=1_000_000)
     location: str = Field(min_length=2, max_length=200)
     availability_status: AvailabilityStatus
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def coordinates_must_be_paired(self) -> "ResourceCreate":
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Provide both latitude and longitude, or leave both empty")
+        return self
 
 
 class Resource(BaseModel):
@@ -228,6 +273,83 @@ class Resource(BaseModel):
     location: str
     availability_status: AvailabilityStatus
     created_at: datetime
+    latitude: float | None = None
+    longitude: float | None = None
+    simulation_reserved_quantity: int = 0
+    simulation_remaining_quantity: int | None = None
+
+
+
+class ResourceUpdate(BaseModel):
+    """Partial resource maintenance request. Only supplied fields are changed."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    resource_type: ResourceType | None = None
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    quantity_available: int | None = Field(default=None, ge=0, le=1_000_000)
+    location: str | None = Field(default=None, min_length=2, max_length=200)
+    availability_status: AvailabilityStatus | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    note: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_update_fields(self) -> "ResourceUpdate":
+        editable_fields = {
+            "resource_type",
+            "name",
+            "quantity_available",
+            "location",
+            "availability_status",
+            "latitude",
+            "longitude",
+        }
+        supplied = editable_fields.intersection(self.model_fields_set)
+        if not supplied:
+            raise ValueError("Provide at least one resource field to update")
+        for field in supplied - {"latitude", "longitude"}:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        coordinates_supplied = {"latitude", "longitude"}.intersection(self.model_fields_set)
+        if coordinates_supplied and coordinates_supplied != {"latitude", "longitude"}:
+            raise ValueError("Provide both latitude and longitude, or update neither")
+        if coordinates_supplied and ((self.latitude is None) != (self.longitude is None)):
+            raise ValueError("Provide both coordinates or clear both coordinates")
+        return self
+
+    @field_validator("note")
+    @classmethod
+    def blank_note_as_none(cls, value: str | None) -> str | None:
+        return value or None
+
+
+class ResourceHistoryEntry(BaseModel):
+    id: int
+    resource_id: int
+    action: str
+    changes: dict[str, dict[str, Any]]
+    note: str | None = None
+    created_at: datetime
+
+
+class ResourceHistory(BaseModel):
+    resource_id: int
+    count: int
+    entries: list[ResourceHistoryEntry]
+
+
+class NearbyResource(Resource):
+    distance_km: float
+
+
+class NearbyResourceList(BaseModel):
+    latitude: float
+    longitude: float
+    radius_km: float
+    count: int
+    resources: list[NearbyResource]
+    disclaimer: str
 
 
 class RecommendationStatus(str, Enum):
@@ -252,6 +374,8 @@ class RecommendedResourceItem(BaseModel):
     available_quantity: int
     for_help_needed: list[HelpType]
     explanation: str
+    distance_km: float | None = None
+    distance_basis: str = "not_available"
 
 
 class UnavailableNeed(BaseModel):

@@ -35,13 +35,15 @@ function escapeHtml(text) {
  * Never invents or geocodes coordinates; incidents without coordinates remain visible
  * in all incident tables and lists.
  */
-export default function IncidentMapPanel({ incidents = [] }) {
+export default function IncidentMapPanel({ incidents = [], resources = [] }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
 
   const mapped = incidents.filter(hasValidCoordinates);
+  const mappedResources = resources.filter(hasValidCoordinates);
   const unmappedCount = incidents.length - mapped.length;
+  const unmappedResourcesCount = resources.length - mappedResources.length;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -74,12 +76,49 @@ export default function IncidentMapPanel({ incidents = [] }) {
 
     layer.clearLayers();
 
-    if (mapped.length === 0) {
+    if (mapped.length === 0 && mappedResources.length === 0) {
       map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
       return;
     }
 
     const bounds = [];
+
+    mappedResources.forEach((resource) => {
+      const status = resource.availability_status || "unknown";
+      const color =
+        status === "available" ? "#0F9D8A" :
+        status === "limited" ? "#D97706" : "#64748B";
+      const marker = L.circleMarker([resource.latitude, resource.longitude], {
+        radius: 7,
+        color: "#FFFFFF",
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 0.95,
+      });
+
+      const code = escapeHtml(`RES-${String(resource.id).padStart(4, "0")}`);
+      const name = escapeHtml(resource.name);
+      const type = escapeHtml(labelize(resource.resource_type));
+      const location = escapeHtml(resource.location);
+      const quantity = escapeHtml(resource.quantity_available);
+      const availability = escapeHtml(labelize(status));
+
+      marker.bindPopup(
+        `<div class="map-popup">
+          <div class="map-popup-head"><strong>${code}</strong> · Resource</div>
+          <div><strong>Name:</strong> ${name}</div>
+          <div><strong>Type:</strong> ${type}</div>
+          <div><strong>Available quantity:</strong> ${quantity}</div>
+          <div><strong>Status:</strong> ${availability}</div>
+          <div><strong>Depot:</strong> ${location}</div>
+          <div class="map-popup-coords">Registered coordinates: ${resource.latitude.toFixed(4)}, ${resource.longitude.toFixed(4)}</div>
+          <div class="map-popup-coords">Straight-line distance is calculated only when matching to a located incident.</div>
+        </div>`
+      );
+
+      marker.addTo(layer);
+      bounds.push([resource.latitude, resource.longitude]);
+    });
 
     mapped.forEach((incident) => {
       const level = incident.severity?.level || "Low";
@@ -122,22 +161,23 @@ export default function IncidentMapPanel({ incidents = [] }) {
     } else {
       map.fitBounds(bounds, { padding: [36, 36], maxZoom: 12 });
     }
-  }, [incidents, mapped.length]);
+  }, [incidents, mapped.length, mappedResources.length, resources]);
 
   return (
     <section className="surface-card">
       <div className="panel-header">
         <div>
-          <h2 className="section-title">
-            Geospatial Incident Overview (Reported / Sample Coordinates)
-          </h2>
+          <h2 className="section-title">Incident &amp; Resource Geospatial Overview</h2>
           <p className="section-subtitle">
-            Plots only incidents supplied with valid latitude and longitude. No live tracking,
-            geocoding, or external feeds are used.
+            Plots reported incident coordinates and registered resource depot coordinates. Missing locations are never guessed.
           </p>
         </div>
 
-        <div className="map-legend" aria-label="Severity marker legend">
+        <div className="map-legend" aria-label="Map marker legend">
+          <span className="legend-pill">
+            <span className="legend-dot" style={{ backgroundColor: "#0F9D8A" }} />
+            <span>Resources</span>
+          </span>
           {SEVERITY_LEVELS.map((level) => (
             <span key={level} className="legend-pill">
               <span
@@ -152,15 +192,15 @@ export default function IncidentMapPanel({ incidents = [] }) {
 
       <div className="map-shell">
         <div ref={containerRef} className="leaflet-box" />
-        {mapped.length === 0 && (
+        {mapped.length === 0 && mappedResources.length === 0 && (
           <div className="map-empty-overlay">
             <Icon name="mapPin" size={20} />
             <div>
-              <strong>No valid incident coordinates are currently available</strong>
+              <strong>No valid incident or resource coordinates are currently available</strong>
               <p>
-                {incidents.length === 0
-                  ? "Report an incident with optional latitude and longitude to display its marker here."
-                  : `All ${incidents.length} reported incident(s) omit optional coordinates and remain listed in the priority queue above.`}
+                {incidents.length === 0 && resources.length === 0
+                  ? "Register a resource or report an incident with coordinates to display map markers here."
+                  : "No records with coordinates are available yet. Records without coordinates remain visible in their tables and queues."}
               </p>
             </div>
           </div>
@@ -170,12 +210,13 @@ export default function IncidentMapPanel({ incidents = [] }) {
       <div className="map-footer">
         <span className="tabular">
           <Icon name="compass" size={14} />{" "}
-          <strong>{mapped.length}</strong> mapped incident(s) with reported/sample coordinates
-          {unmappedCount > 0 &&
-            ` · ${unmappedCount} incident(s) without coordinates shown in the queue`}
+          <strong>{mapped.length}</strong> mapped incident(s)
+          · <strong>{mappedResources.length}</strong> mapped resource(s)
+          {(unmappedCount + unmappedResourcesCount) > 0 &&
+            ` · ${unmappedCount} incident(s) and ${unmappedResourcesCount} resource(s) without coordinates`}
         </span>
         <span className="text-muted">
-          Click a marker to inspect details · Double-click a marker to open its investigation page
+          Click a marker to inspect its record · Incident markers use severity colours; resource markers use green/amber/grey
         </span>
       </div>
     </section>

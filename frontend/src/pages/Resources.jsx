@@ -8,7 +8,7 @@ import { SkeletonTable } from "../components/common/Skeleton";
 import { useData } from "../context/DataContext";
 import { useToast } from "../context/ToastContext";
 import { ApiError, describeError } from "../services/apiClient";
-import { createResource } from "../services/resourceService";
+import { createResource, getResourceHistory, updateResource } from "../services/resourceService";
 import {
   AVAILABILITY_STATUSES,
   RESOURCE_ICONS,
@@ -63,6 +63,9 @@ function emptyResourceForm() {
     quantity_available: "3",
     location: "",
     availability_status: "available",
+    latitude: "",
+    longitude: "",
+    note: "",
   };
 }
 
@@ -79,6 +82,9 @@ export default function Resources() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+  const [editingResourceId, setEditingResourceId] = useState(null);
+  const [resourceHistory, setResourceHistory] = useState({});
+  const [historyLoadingId, setHistoryLoadingId] = useState(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -100,7 +106,7 @@ export default function Resources() {
       const matching = resources.data.filter((r) => r.resource_type === type);
       const availUnits = matching
         .filter((r) => r.availability_status === "available")
-        .reduce((sum, r) => sum + (r.quantity_available || 0), 0);
+        .reduce((sum, r) => sum + (r.simulation_remaining_quantity ?? r.quantity_available ?? 0), 0);
       return {
         type,
         poolCount: matching.length,
@@ -110,20 +116,66 @@ export default function Resources() {
   }, [resources.data]);
 
   function openAddModal(preset = null) {
+    setEditingResourceId(null);
     setFormError("");
     setFieldErrors({});
     if (preset) {
       setForm({
+        ...emptyResourceForm(),
         resource_type: preset.resource_type,
         name: preset.name,
-        quantity_available: preset.quantity_available,
+        quantity_available: String(preset.quantity_available),
         location: preset.location,
         availability_status: preset.availability_status,
+        latitude: preset.latitude || "",
+        longitude: preset.longitude || "",
       });
     } else {
       setForm(emptyResourceForm());
     }
     setModalOpen(true);
+  }
+
+  function openEditModal(resource) {
+    setEditingResourceId(resource.id);
+    setFormError("");
+    setFieldErrors({});
+    setForm({
+      resource_type: resource.resource_type,
+      name: resource.name,
+      quantity_available: String(resource.quantity_available),
+      location: resource.location,
+      availability_status: resource.availability_status,
+      latitude: resource.latitude === null ? "" : String(resource.latitude),
+      longitude: resource.longitude === null ? "" : String(resource.longitude),
+      note: "",
+    });
+    setModalOpen(true);
+  }
+
+  async function toggleResourceHistory(resource) {
+    if (resourceHistory[resource.id]) {
+      setResourceHistory((current) => {
+        const next = { ...current };
+        delete next[resource.id];
+        return next;
+      });
+      return;
+    }
+    if (historyLoadingId !== null) return;
+    setHistoryLoadingId(resource.id);
+    try {
+      const result = await getResourceHistory(resource.id);
+      setResourceHistory((current) => ({ ...current, [resource.id]: result.entries }));
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Could not load resource history",
+        message: describeError(err),
+      });
+    } finally {
+      setHistoryLoadingId(null);
+    }
   }
 
   async function handleCreateResource(event) {
@@ -134,32 +186,70 @@ export default function Resources() {
     const errs = {};
     if (form.name.trim().length < 2) errs.name = "Name must be at least 2 characters.";
     if (form.location.trim().length < 2) errs.location = "Location must be at least 2 characters.";
+
     const qty = Number(form.quantity_available);
     if (!Number.isInteger(qty) || qty < 0 || qty > 1_000_000) {
       errs.quantity_available = "Quantity must be a whole number from 0 to 1,000,000.";
     }
+
+    const hasLatitude = form.latitude.trim() !== "";
+    const hasLongitude = form.longitude.trim() !== "";
+    if (hasLatitude !== hasLongitude) {
+      errs.latitude = "Provide both latitude and longitude, or leave both empty.";
+      errs.longitude = "Provide both latitude and longitude, or leave both empty.";
+    }
+    if (hasLatitude && (!Number.isFinite(Number(form.latitude)) || Number(form.latitude) < -90 || Number(form.latitude) > 90)) {
+      errs.latitude = "Latitude must be between -90 and 90.";
+    }
+    if (hasLongitude && (!Number.isFinite(Number(form.longitude)) || Number(form.longitude) < -180 || Number(form.longitude) > 180)) {
+      errs.longitude = "Longitude must be between -180 and 180.";
+    }
+
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       setFormError("Please fix the highlighted fields.");
       return;
     }
 
+    const payload = {
+      resource_type: form.resource_type,
+      name: form.name.trim(),
+      quantity_available: qty,
+      location: form.location.trim(),
+      availability_status: form.availability_status,
+      latitude: hasLatitude ? Number(form.latitude) : null,
+      longitude: hasLongitude ? Number(form.longitude) : null,
+    };
+
     setSubmitting(true);
     try {
-      const created = await createResource({
-        resource_type: form.resource_type,
-        name: form.name.trim(),
-        quantity_available: qty,
-        location: form.location.trim(),
-        availability_status: form.availability_status,
-      });
-      await refreshAll();
-      toast({
-        type: "success",
-        title: `${resourceCode(created.id)} registered`,
-        message: `${created.name} (${created.quantity_available} unit(s), ${created.availability_status}).`,
-      });
+      if (editingResourceId !== null) {
+        const updated = await updateResource(editingResourceId, {
+          ...payload,
+          note: form.note.trim() || null,
+        });
+        await refreshAll();
+        setResourceHistory((current) => {
+          const next = { ...current };
+          delete next[updated.id];
+          return next;
+        });
+        toast({
+          type: "success",
+          title: `${resourceCode(updated.id)} updated`,
+          message: `${updated.name} · physical stock ${updated.quantity_available} · ${updated.availability_status}.`,
+        });
+      } else {
+        const created = await createResource(payload);
+        await refreshAll();
+        toast({
+          type: "success",
+          title: `${resourceCode(created.id)} registered`,
+          message: `${created.name} (${created.quantity_available} unit(s), ${created.availability_status}).`,
+        });
+      }
       setModalOpen(false);
+      setEditingResourceId(null);
     } catch (err) {
       if (err instanceof ApiError && err.kind === "validation") {
         setFieldErrors(err.fieldErrors || {});
@@ -221,7 +311,7 @@ export default function Resources() {
             </div>
             <div className="category-tile-num tabular">{formatNumber(cat.availUnits)}</div>
             <div className="category-tile-sub tabular">
-              available units · {cat.poolCount} pool(s)
+              simulation-unreserved units · {cat.poolCount} pool(s)
             </div>
           </button>
         ))}
@@ -329,9 +419,15 @@ export default function Resources() {
 
                   <div className="resource-card-qty-row">
                     <div>
-                      <span className="resource-qty-label">Available Quantity</span>
+                      <span className="resource-qty-label">Physical Quantity</span>
                       <div className="resource-qty-val tabular">
                         {formatNumber(res.quantity_available)}
+                      </div>
+                      <div className="cell-sub tabular">
+                        Simulation reserved: {formatNumber(res.simulation_reserved_quantity || 0)}
+                      </div>
+                      <div className="cell-sub tabular">
+                        Remaining for simulation: {formatNumber(res.simulation_remaining_quantity ?? res.quantity_available)}
                       </div>
                     </div>
                     <StatusBadge status={res.availability_status} />
@@ -341,6 +437,44 @@ export default function Resources() {
                     <Icon name="mapPin" size={14} />
                     <span>{res.location}</span>
                   </div>
+                  <div className="resource-card-meta">
+                    <Icon name="crosshair" size={14} />
+                    <span>
+                      {typeof res.latitude === "number" && typeof res.longitude === "number"
+                        ? `${res.latitude.toFixed(4)}, ${res.longitude.toFixed(4)}`
+                        : "Coordinates not registered"}
+                    </span>
+                  </div>
+                  <div className="resource-card-actions">
+                    <button type="button" className="btn btn-secondary btn-xs" onClick={() => openEditModal(res)}>
+                      <span>Edit inventory</span>
+                    </button>
+                    <button type="button" className="btn btn-secondary btn-xs" onClick={() => toggleResourceHistory(res)} disabled={historyLoadingId !== null}>
+                      <Icon name="history" size={13} />
+                      <span>{historyLoadingId === res.id ? "Loading..." : resourceHistory[res.id] ? "Hide history" : "View history"}</span>
+                    </button>
+                  </div>
+                  {resourceHistory[res.id] && (
+                    <div className="resource-history-panel">
+                      <strong>Inventory audit history</strong>
+                      {resourceHistory[res.id].map((entry) => (
+                        <div className="resource-history-entry" key={entry.id}>
+                          <div className="resource-history-entry-head">
+                            <span>{labelize(entry.action)}</span>
+                            <time>{formatDateTime(entry.created_at)}</time>
+                          </div>
+                          {entry.note && <p>{entry.note}</p>}
+                          <ul>
+                            {Object.entries(entry.changes).map(([field, values]) => (
+                              <li key={field}>
+                                <strong>{labelize(field)}:</strong> {values.from === null ? "—" : String(values.from)} → {values.to === null ? "—" : String(values.to)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </article>
               ))}
             </div>
@@ -356,9 +490,13 @@ export default function Resources() {
                     <th>Name</th>
                     <th>Category</th>
                     <th>Location</th>
-                    <th>Quantity Available</th>
+                    <th>Coordinates</th>
+                    <th>Physical Quantity</th>
+                    <th>Simulation Reserved</th>
+                    <th>Simulation Remaining</th>
                     <th>Availability Status</th>
                     <th>Registered (UTC)</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -372,14 +510,31 @@ export default function Resources() {
                       </td>
                       <td data-label="Category">{labelize(res.resource_type)}</td>
                       <td data-label="Location">{res.location}</td>
-                      <td data-label="Quantity Available" className="tabular font-medium">
+                      <td data-label="Coordinates" className="tabular text-muted">
+                        {typeof res.latitude === "number" && typeof res.longitude === "number"
+                          ? `${res.latitude.toFixed(4)}, ${res.longitude.toFixed(4)}`
+                          : "—"}
+                      </td>
+                      <td data-label="Physical Quantity" className="tabular font-medium">
                         {formatNumber(res.quantity_available)}
+                      </td>
+                      <td data-label="Simulation Reserved" className="tabular">
+                        {formatNumber(res.simulation_reserved_quantity || 0)}
+                      </td>
+                      <td data-label="Simulation Remaining" className="tabular font-medium">
+                        {formatNumber(res.simulation_remaining_quantity ?? res.quantity_available)}
                       </td>
                       <td data-label="Availability Status">
                         <StatusBadge status={res.availability_status} />
                       </td>
                       <td data-label="Registered (UTC)" className="tabular text-muted">
                         {formatDateTime(res.created_at)}
+                      </td>
+                      <td data-label="Actions">
+                        <div className="resource-table-actions">
+                          <button type="button" className="btn btn-secondary btn-xs" onClick={() => openEditModal(res)}>Edit</button>
+                          <button type="button" className="btn btn-secondary btn-xs" onClick={() => toggleResourceHistory(res)} disabled={historyLoadingId !== null}>History</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -394,8 +549,8 @@ export default function Resources() {
         open={modalOpen}
         onClose={submitting ? undefined : () => setModalOpen(false)}
         size="md"
-        title="Register Relief Resource"
-        subtitle="Adds a resource record to SQLite via POST /api/resources."
+        title={editingResourceId !== null ? "Edit Relief Resource" : "Register Relief Resource"}
+        subtitle={editingResourceId !== null ? "Update physical inventory details. Active simulation reservations are protected." : "Adds a resource record to SQLite via POST /api/resources."}
         footer={
           <>
             <button
@@ -412,13 +567,13 @@ export default function Resources() {
               className="btn btn-primary"
               disabled={submitting}
             >
-              <Icon name="plus" size={16} />
-              <span>{submitting ? "Saving..." : "Save Resource"}</span>
+              <Icon name={editingResourceId !== null ? "checkCircle" : "plus"} size={16} />
+              <span>{submitting ? "Saving..." : editingResourceId !== null ? "Update Resource" : "Save Resource"}</span>
             </button>
           </>
         }
       >
-        <div className="preset-bar">
+        {editingResourceId === null && <div className="preset-bar">
           <span className="preset-label">Quick-fill sample resource:</span>
           {RESOURCE_PRESETS.map((preset) => (
             <button
@@ -439,7 +594,7 @@ export default function Resources() {
               {preset.label}
             </button>
           ))}
-        </div>
+        </div>}
 
         {formError && (
           <div className="error-panel" role="alert" style={{ marginBottom: 12 }}>
@@ -540,6 +695,54 @@ export default function Resources() {
               <span className="field-error">{fieldErrors.location}</span>
             )}
           </div>
+
+          <div className="form-field">
+            <label htmlFor="res-latitude">Latitude (optional)</label>
+            <input
+              id="res-latitude"
+              type="number"
+              min="-90"
+              max="90"
+              step="any"
+              placeholder="e.g. 28.6139"
+              value={form.latitude}
+              onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
+              disabled={submitting}
+            />
+            {fieldErrors.latitude && <span className="field-error">{fieldErrors.latitude}</span>}
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="res-longitude">Longitude (optional)</label>
+            <input
+              id="res-longitude"
+              type="number"
+              min="-180"
+              max="180"
+              step="any"
+              placeholder="e.g. 77.2090"
+              value={form.longitude}
+              onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
+              disabled={submitting}
+            />
+            {fieldErrors.longitude && <span className="field-error">{fieldErrors.longitude}</span>}
+            <span className="field-hint">Enter both coordinates to include this resource in the map and nearby matching.</span>
+          </div>
+
+          {editingResourceId !== null && (
+            <div className="form-field form-field-full">
+              <label htmlFor="res-audit-note">Change note (optional)</label>
+              <input
+                id="res-audit-note"
+                type="text"
+                maxLength={500}
+                placeholder="Reason for this inventory change…"
+                value={form.note}
+                onChange={(e) => setForm((current) => ({ ...current, note: e.target.value }))}
+                disabled={submitting}
+              />
+            </div>
+          )}
 
           <div className="form-field">
             <label htmlFor="res-status">

@@ -32,6 +32,7 @@ HOW MATCHING WORKS
 
 import math
 
+from app.geo import haversine_km
 from app.schemas import (
     AvailabilityStatus,
     HelpType,
@@ -90,11 +91,16 @@ def build_recommendation(
 ) -> tuple[list[RecommendedResourceItem], list[UnavailableNeed], list[InsufficientNeed], str]:
     """Match an incident's help_needed list against available resources."""
     # Safety filter: only resources that are "available" and have positive quantity.
+    def simulation_remaining(resource: Resource) -> int:
+        if resource.simulation_remaining_quantity is not None:
+            return resource.simulation_remaining_quantity
+        return resource.quantity_available
+
     eligible = [
         resource
         for resource in resources
         if resource.availability_status == AvailabilityStatus.AVAILABLE
-        and resource.quantity_available > 0
+        and simulation_remaining(resource) > 0
     ]
 
     grouped_needs = group_needs_by_resource_type(incident.help_needed)
@@ -105,8 +111,38 @@ def build_recommendation(
     for resource_type, matching_help in grouped_needs.items():
         help_label = ", ".join(item.value for item in matching_help)
         candidates = [r for r in eligible if r.resource_type == resource_type]
-        # Prefer resources with larger available stock first (then lower ID for consistency).
-        candidates.sort(key=lambda r: (-r.quantity_available, r.id))
+        has_incident_coordinates = (
+            incident.latitude is not None and incident.longitude is not None
+        )
+
+        def candidate_distance(resource: Resource) -> float | None:
+            if not has_incident_coordinates:
+                return None
+            if resource.latitude is None or resource.longitude is None:
+                return None
+            return haversine_km(
+                incident.latitude,
+                incident.longitude,
+                resource.latitude,
+                resource.longitude,
+            )
+
+        # When the incident has coordinates, geocoded resources are ranked by
+        # straight-line proximity first. Ungeocoded resources remain as fallbacks.
+        # Without incident coordinates, retain the previous stock-first behavior.
+        if has_incident_coordinates:
+            candidates.sort(
+                key=lambda resource: (
+                    candidate_distance(resource) is None,
+                    candidate_distance(resource)
+                    if candidate_distance(resource) is not None
+                    else math.inf,
+                    -simulation_remaining(resource),
+                    resource.id,
+                )
+            )
+        else:
+            candidates.sort(key=lambda resource: (-resource.quantity_available, resource.id))
 
         if not candidates:
             unavailable_needs.append(
@@ -128,19 +164,27 @@ def build_recommendation(
             if remaining <= 0:
                 break
 
-            suggested = min(remaining, resource.quantity_available)
+            simulation_available = simulation_remaining(resource)
+            suggested = min(remaining, simulation_available)
             remaining -= suggested
 
-            if suggested == resource.quantity_available and remaining > 0:
+            if suggested == simulation_available and remaining > 0:
                 qty_note = (
-                    f"Suggested all {suggested} available unit(s) "
+                    f"Suggested all {suggested} simulation-unreserved unit(s) "
                     f"(estimated need: {desired} for {incident.people_affected} people affected)."
                 )
             else:
                 qty_note = (
-                    f"Suggested {suggested} of {resource.quantity_available} available unit(s) "
+                    f"Suggested {suggested} of {simulation_available} simulation-unreserved unit(s) "
                     f"(estimated need: {desired} for {incident.people_affected} people affected)."
                 )
+
+            distance_km = candidate_distance(resource)
+            distance_note = (
+                f" Straight-line distance from incident: {distance_km:.2f} km."
+                if distance_km is not None
+                else " Distance unavailable; this resource is ranked using available stock."
+            )
 
             items.append(
                 RecommendedResourceItem(
@@ -149,9 +193,13 @@ def build_recommendation(
                     resource_type=resource.resource_type,
                     resource_location=resource.location,
                     recommended_quantity=suggested,
-                    available_quantity=resource.quantity_available,
+                    available_quantity=simulation_available,
                     for_help_needed=matching_help,
-                    explanation=f"Matched '{resource_type.value}' for {help_label}. {qty_note}",
+                    explanation=f"Matched '{resource_type.value}' for {help_label}. {qty_note}{distance_note}",
+                    distance_km=round(distance_km, 2) if distance_km is not None else None,
+                    distance_basis=(
+                        "haversine_straight_line" if distance_km is not None else "not_available"
+                    ),
                 )
             )
 

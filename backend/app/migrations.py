@@ -606,10 +606,321 @@ def _migration_003_normalize_recommendation_items(
         )
 
 
+
+def _migration_004_create_external_alert_tables(connection: sqlite3.Connection) -> None:
+    """Create non-destructive tables for imported alerts and provider sync history."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS external_alerts (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            source              TEXT NOT NULL CHECK (source IN ('gdacs', 'usgs')),
+            source_event_id     TEXT NOT NULL,
+            event_type          TEXT NOT NULL,
+            hazard_type         TEXT NOT NULL,
+            title               TEXT NOT NULL,
+            description         TEXT,
+            location            TEXT,
+            country             TEXT,
+            alert_level         TEXT,
+            alert_score         REAL,
+            severity_value      REAL,
+            severity_unit       TEXT,
+            severity_text       TEXT,
+            latitude            REAL CHECK (latitude IS NULL OR (latitude >= -90 AND latitude <= 90)),
+            longitude           REAL CHECK (longitude IS NULL OR (longitude >= -180 AND longitude <= 180)),
+            depth_km            REAL,
+            event_at            TEXT,
+            source_updated_at   TEXT,
+            source_url          TEXT,
+            raw_data            TEXT NOT NULL,
+            first_seen_at       TEXT NOT NULL,
+            last_seen_at        TEXT NOT NULL,
+            review_status       TEXT NOT NULL DEFAULT 'new'
+                                    CHECK (review_status IN ('new', 'reviewed', 'dismissed')),
+            reviewed_at         TEXT,
+            review_note         TEXT,
+            CHECK ((latitude IS NULL AND longitude IS NULL)
+                   OR (latitude IS NOT NULL AND longitude IS NOT NULL)),
+            UNIQUE (source, source_event_id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alert_sync_runs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            source          TEXT NOT NULL CHECK (source IN ('gdacs', 'usgs')),
+            status          TEXT NOT NULL CHECK (status IN ('success', 'failed')),
+            fetched_count   INTEGER NOT NULL CHECK (fetched_count >= 0),
+            created_count   INTEGER NOT NULL CHECK (created_count >= 0),
+            updated_count   INTEGER NOT NULL CHECK (updated_count >= 0),
+            error_message   TEXT,
+            started_at      TEXT NOT NULL,
+            finished_at     TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_alerts_event_at ON external_alerts (event_at)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_alerts_review_status ON external_alerts (review_status)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_alerts_hazard_type ON external_alerts (hazard_type)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_alert_sync_runs_source_id ON alert_sync_runs (source, id)"
+    )
+
+
+
+def _migration_005_create_alert_assessments(connection: sqlite3.Connection) -> None:
+    """Create immutable snapshots from the specialist-agent assessment pipeline."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alert_assessments (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            external_alert_id       INTEGER NOT NULL,
+            source                  TEXT NOT NULL CHECK (source IN ('gdacs', 'usgs')),
+            source_event_id         TEXT NOT NULL,
+            title                   TEXT NOT NULL,
+            hazard_type             TEXT NOT NULL,
+            engine_version          TEXT NOT NULL,
+            assessment_status       TEXT NOT NULL CHECK (assessment_status = 'completed'),
+            review_priority         TEXT NOT NULL CHECK (
+                review_priority IN (
+                    'urgent_review',
+                    'priority_review',
+                    'routine_review',
+                    'human_interpretation_required'
+                )
+            ),
+            human_review_required   INTEGER NOT NULL CHECK (human_review_required IN (0, 1)),
+            summary                 TEXT NOT NULL,
+            agents_json             TEXT NOT NULL,
+            disclaimer              TEXT NOT NULL,
+            generated_at            TEXT NOT NULL,
+            FOREIGN KEY (external_alert_id) REFERENCES external_alerts (id) ON DELETE RESTRICT
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_alert_assessments_alert_id "
+        "ON alert_assessments (external_alert_id, id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_alert_assessments_priority "
+        "ON alert_assessments (review_priority, id)"
+    )
+
+
+
+def _migration_006_add_resource_coordinates_and_match_distances(
+    connection: sqlite3.Connection,
+) -> None:
+    """Add optional coordinates to resources and distances to saved suggestions."""
+    resource_columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(resources)").fetchall()
+    }
+    if "latitude" not in resource_columns:
+        connection.execute(
+            "ALTER TABLE resources ADD COLUMN latitude REAL "
+            "CHECK (latitude IS NULL OR (latitude >= -90 AND latitude <= 90))"
+        )
+    if "longitude" not in resource_columns:
+        connection.execute(
+            "ALTER TABLE resources ADD COLUMN longitude REAL "
+            "CHECK (longitude IS NULL OR (longitude >= -180 AND longitude <= 180))"
+        )
+
+    recommendation_item_columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(recommendation_items)").fetchall()
+    }
+    if "distance_km" not in recommendation_item_columns:
+        connection.execute(
+            "ALTER TABLE recommendation_items ADD COLUMN distance_km REAL "
+            "CHECK (distance_km IS NULL OR distance_km >= 0)"
+        )
+    if "distance_basis" not in recommendation_item_columns:
+        connection.execute(
+            "ALTER TABLE recommendation_items ADD COLUMN distance_basis TEXT "
+            "NOT NULL DEFAULT 'not_available' "
+            "CHECK (distance_basis IN ('haversine_straight_line', 'not_available'))"
+        )
+
+
+
+def _migration_007_create_response_plan_simulation_tables(
+    connection: sqlite3.Connection,
+) -> None:
+    """Create human-gated response plans, simulation reservations and audit records."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_plans (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id         INTEGER NOT NULL,
+            recommendation_id   INTEGER NOT NULL UNIQUE,
+            status              TEXT NOT NULL DEFAULT 'pending'
+                                    CHECK (status IN ('pending', 'simulated', 'rejected', 'completed')),
+            summary             TEXT NOT NULL,
+            decision_note       TEXT,
+            created_at          TEXT NOT NULL,
+            decided_at          TEXT,
+            completed_at        TEXT,
+            FOREIGN KEY (incident_id) REFERENCES incidents (id),
+            FOREIGN KEY (recommendation_id) REFERENCES recommendations (id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_plan_items (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            response_plan_id    INTEGER NOT NULL,
+            resource_id         INTEGER NOT NULL,
+            resource_name       TEXT NOT NULL,
+            resource_type       TEXT NOT NULL,
+            resource_location   TEXT NOT NULL,
+            assigned_quantity   INTEGER NOT NULL CHECK (assigned_quantity > 0),
+            distance_km         REAL CHECK (distance_km IS NULL OR distance_km >= 0),
+            distance_basis      TEXT NOT NULL DEFAULT 'not_available'
+                                    CHECK (distance_basis IN ('haversine_straight_line', 'not_available')),
+            FOREIGN KEY (response_plan_id) REFERENCES response_plans (id),
+            FOREIGN KEY (resource_id) REFERENCES resources (id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_plan_actions (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            response_plan_id    INTEGER NOT NULL,
+            action              TEXT NOT NULL
+                                    CHECK (action IN ('created', 'simulated', 'rejected', 'completed')),
+            note                TEXT,
+            created_at          TEXT NOT NULL,
+            FOREIGN KEY (response_plan_id) REFERENCES response_plans (id)
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_response_plans_incident_id "
+        "ON response_plans (incident_id, id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_response_plans_status "
+        "ON response_plans (status, id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_response_plan_items_resource "
+        "ON response_plan_items (resource_id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_response_plan_actions_plan "
+        "ON response_plan_actions (response_plan_id, id)"
+    )
+
+
+
+def _migration_008_link_reviewed_alerts_to_incidents(
+    connection: sqlite3.Connection,
+) -> None:
+    """Add an optional one-way link from a reviewed external alert to its incident."""
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(external_alerts)").fetchall()
+    }
+    if "linked_incident_id" not in columns:
+        connection.execute(
+            "ALTER TABLE external_alerts ADD COLUMN linked_incident_id "
+            "INTEGER REFERENCES incidents (id)"
+        )
+    if "linked_at" not in columns:
+        connection.execute(
+            "ALTER TABLE external_alerts ADD COLUMN linked_at TEXT"
+        )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_alerts_linked_incident "
+        "ON external_alerts (linked_incident_id)"
+    )
+
+
+
+def _migration_009_create_resource_change_history(
+    connection: sqlite3.Connection,
+) -> None:
+    """Create an audit trail for resource registration and inventory edits."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS resource_change_history (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            resource_id     INTEGER NOT NULL,
+            action          TEXT NOT NULL CHECK (action IN ('created', 'updated')),
+            changes_json    TEXT NOT NULL,
+            note            TEXT,
+            created_at      TEXT NOT NULL,
+            FOREIGN KEY (resource_id) REFERENCES resources (id) ON DELETE RESTRICT
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_resource_change_history_resource "
+        "ON resource_change_history (resource_id, id)"
+    )
+
+
+
+def _migration_010_create_incident_updates(
+    connection: sqlite3.Connection,
+) -> None:
+    """Create immutable incident status and operator-note timeline events."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_updates (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id     INTEGER NOT NULL,
+            event_type      TEXT NOT NULL
+                                CHECK (event_type IN ('status_changed', 'operator_note')),
+            previous_status TEXT
+                                CHECK (previous_status IS NULL OR previous_status IN ('open', 'resolved', 'closed')),
+            new_status      TEXT
+                                CHECK (new_status IS NULL OR new_status IN ('open', 'resolved', 'closed')),
+            note            TEXT,
+            created_at      TEXT NOT NULL,
+            FOREIGN KEY (incident_id) REFERENCES incidents (id) ON DELETE RESTRICT,
+            CHECK (
+                (event_type = 'status_changed'
+                    AND previous_status IS NOT NULL
+                    AND new_status IS NOT NULL
+                    AND previous_status != new_status)
+                OR
+                (event_type = 'operator_note'
+                    AND previous_status IS NULL
+                    AND new_status IS NULL
+                    AND note IS NOT NULL)
+            )
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_incident_updates_incident "
+        "ON incident_updates (incident_id, id)"
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
     (3, "003_normalize_recommendation_items", _migration_003_normalize_recommendation_items),
+    (4, "004_create_external_alert_tables", _migration_004_create_external_alert_tables),
+    (5, "005_create_alert_assessments", _migration_005_create_alert_assessments),
+    (6, "006_add_resource_coordinates_and_match_distances", _migration_006_add_resource_coordinates_and_match_distances),
+    (7, "007_create_response_plan_simulation_tables", _migration_007_create_response_plan_simulation_tables),
+    (8, "008_link_reviewed_alerts_to_incidents", _migration_008_link_reviewed_alerts_to_incidents),
+    (9, "009_create_resource_change_history", _migration_009_create_resource_change_history),
+    (10, "010_create_incident_updates", _migration_010_create_incident_updates),
 ]
 
 

@@ -8,8 +8,14 @@ touch the real data/relief.db and never affect each other.
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config
+from app import config, main as main_module
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def disable_background_alert_sync(monkeypatch):
+    """Keep the test suite offline; feed sync endpoints are mocked in API tests."""
+    monkeypatch.setattr(main_module, "ALERT_AUTO_SYNC_ENABLED", False)
 
 
 @pytest.fixture

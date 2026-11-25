@@ -14,14 +14,17 @@ export const EVENT_META = {
   recommendation_generated: { icon: "cpu", tone: "cyan", label: "Recommendation generated" },
   recommendation_approved: { icon: "checkCircle", tone: "teal", label: "Recommendation approved" },
   recommendation_rejected: { icon: "xCircle", tone: "slate", label: "Recommendation rejected" },
+  incident_status_changed: { icon: "activity", tone: "amber", label: "Incident status changed" },
+  incident_operator_note: { icon: "info", tone: "blue", label: "Operator update" },
 };
 
 export const EVENT_SOURCE_LABELS = {
   record: "Record timestamp",
   action_log: "Logged operator action",
+  incident_timeline: "Incident operational log",
 };
 
-export function buildActivityEvents({ incidents = [], recommendations = [], actions = [] }) {
+export function buildActivityEvents({ incidents = [], recommendations = [], actions = [], incidentUpdates = [] }) {
   const events = [];
 
   for (const incident of incidents) {
@@ -60,6 +63,24 @@ export function buildActivityEvents({ incidents = [], recommendations = [], acti
       decision: action.decision,
       note: action.note,
       description: `Operator decision recorded as "${action.decision}" (action: ${action.action}). No resources were dispatched or reserved.`,
+    });
+  }
+
+  for (const update of incidentUpdates) {
+    const isStatusChange = update.event_type === "status_changed";
+    const previous = update.previous_status ? labelize(update.previous_status) : "";
+    const next = update.new_status ? labelize(update.new_status) : "";
+    events.push({
+      key: `incident-update-${update.id}`,
+      type: isStatusChange ? "incident_status_changed" : "incident_operator_note",
+      source: "incident_timeline",
+      timestamp: update.created_at,
+      incidentId: update.incident_id,
+      recommendationId: null,
+      note: update.note,
+      description: isStatusChange
+        ? `Status changed from ${previous} to ${next}.`
+        : update.note,
     });
   }
 

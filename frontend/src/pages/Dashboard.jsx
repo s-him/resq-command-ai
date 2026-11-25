@@ -27,10 +27,10 @@ export default function Dashboard({ onOpenCreateIncident }) {
   ).length;
 
   const availableResources = resources.data.filter(
-    (res) => res.availability_status === "available" && res.quantity_available > 0
+    (res) => res.availability_status === "available" && (res.simulation_remaining_quantity ?? res.quantity_available) > 0
   );
   const totalAvailableUnits = availableResources.reduce(
-    (sum, res) => sum + (res.quantity_available || 0),
+    (sum, res) => sum + (res.simulation_remaining_quantity ?? res.quantity_available ?? 0),
     0
   );
 
@@ -136,7 +136,7 @@ export default function Dashboard({ onOpenCreateIncident }) {
         decisionCount={actions.length}
       />
 
-      <IncidentMapPanel incidents={openIncidents} />
+      <IncidentMapPanel incidents={openIncidents} resources={resources.data} />
     </div>
   );
 }

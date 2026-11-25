@@ -20,7 +20,7 @@ def add_incident(client, **overrides) -> int:
     return response.json()["id"]
 
 
-def add_resource(client, resource_type, name, quantity, status="available", location="Central Depot"):
+def add_resource(client, resource_type, name, quantity, status="available", location="Central Depot", latitude=None, longitude=None):
     response = client.post(
         "/api/resources",
         json={
@@ -29,6 +29,8 @@ def add_resource(client, resource_type, name, quantity, status="available", loca
             "quantity_available": quantity,
             "location": location,
             "availability_status": status,
+            "latitude": latitude,
+            "longitude": longitude,
         },
     )
     assert response.status_code == 201, response.text
@@ -157,3 +159,61 @@ def test_recommendation_is_saved_in_sqlite(client, temp_database):
     assert row[2] == "pending"
     assert row[3]
 
+
+
+
+def test_recommendation_prefers_nearest_geocoded_resource(client):
+    incident_id = add_incident(
+        client,
+        people_affected=75,
+        help_needed=["medical"],
+        latitude=28.6139,
+        longitude=77.2090,
+    )
+    nearby = add_resource(
+        client,
+        "ambulance",
+        "Nearby Unit",
+        2,
+        latitude=28.6140,
+        longitude=77.2090,
+    )
+    farther = add_resource(
+        client,
+        "ambulance",
+        "Farther Unit",
+        8,
+        latitude=28.7000,
+        longitude=77.2090,
+    )
+
+    response = client.post(f"/api/incidents/{incident_id}/recommendation")
+
+    assert response.status_code == 201
+    items = response.json()["items"]
+    assert [item["resource_id"] for item in items] == [nearby["id"], farther["id"]]
+    assert items[0]["recommended_quantity"] == 2
+    assert items[1]["recommended_quantity"] == 1
+    assert items[0]["distance_basis"] == "haversine_straight_line"
+    assert items[0]["distance_km"] < items[1]["distance_km"]
+    assert "straight-line distance" in items[0]["explanation"].lower()
+
+
+def test_recommendation_falls_back_to_stock_when_resource_coordinates_missing(client):
+    incident_id = add_incident(
+        client,
+        people_affected=25,
+        help_needed=["medical"],
+        latitude=28.6139,
+        longitude=77.2090,
+    )
+    low_stock = add_resource(client, "ambulance", "Small Stock", 1)
+    high_stock = add_resource(client, "ambulance", "Large Stock", 4)
+
+    response = client.post(f"/api/incidents/{incident_id}/recommendation")
+
+    items = response.json()["items"]
+    assert response.status_code == 201
+    assert [item["resource_id"] for item in items] == [high_stock["id"]]
+    assert items[0]["distance_km"] is None
+    assert items[0]["distance_basis"] == "not_available"

@@ -12,13 +12,24 @@ GET  /api/incidents/{id}/history           -> list recommendations and operator 
 from fastapi import APIRouter, HTTPException, status
 
 from app import (
+    incident_lifecycle_repository,
     incident_repository,
     prioritization,
     recommendation_repository,
     recommendations,
     resource_repository,
 )
-from app.schemas import Incident, IncidentCreate, IncidentHistory, PriorityList, Recommendation
+from app.schemas import (
+    Incident,
+    IncidentCreate,
+    IncidentHistory,
+    IncidentOperatorNote,
+    IncidentStatusUpdate,
+    IncidentUpdateEntry,
+    IncidentUpdateList,
+    PriorityList,
+    Recommendation,
+)
 
 router = APIRouter(prefix="/api/incidents", tags=["Incidents"])
 
@@ -116,3 +127,85 @@ def get_incident_history(incident_id: int) -> IncidentHistory:
         recommendations=recommendation_repository.list_recommendations_for_incident(incident.id),
         action_history=recommendation_repository.list_action_history_for_incident(incident.id),
     )
+
+
+
+@router.patch("/{incident_id}/status", response_model=Incident)
+def update_incident_status(
+    incident_id: int,
+    request: IncidentStatusUpdate,
+) -> Incident:
+    """Move an incident through the operator-managed lifecycle."""
+    try:
+        event = incident_lifecycle_repository.change_incident_status(
+            incident_id=incident_id,
+            new_status=request.status,
+            note=request.note,
+        )
+    except incident_lifecycle_repository.IncidentLifecycleConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident {incident_id} not found.",
+        )
+    return incident_repository.get_incident_by_id(incident_id)
+
+
+@router.post(
+    "/{incident_id}/updates",
+    response_model=IncidentUpdateEntry,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_incident_operator_update(
+    incident_id: int,
+    request: IncidentOperatorNote,
+) -> dict:
+    """Append an operational note to the incident timeline."""
+    try:
+        event = incident_lifecycle_repository.add_operator_note(
+            incident_id=incident_id,
+            note=request.note,
+        )
+    except incident_lifecycle_repository.IncidentLifecycleConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident {incident_id} not found.",
+        )
+    return event
+
+
+@router.get("/{incident_id}/updates", response_model=IncidentUpdateList)
+def get_incident_operational_updates(incident_id: int) -> dict:
+    """Return status changes and operator notes for an incident."""
+    incident = incident_repository.get_incident_by_id(incident_id)
+    if incident is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident {incident_id} not found.",
+        )
+
+    updates = incident_lifecycle_repository.list_incident_updates(incident_id)
+    return {
+        "incident_id": incident_id,
+        "count": len(updates),
+        "active_simulation_count": incident_lifecycle_repository.count_active_simulations(
+            incident_id
+        ),
+        "updates": updates,
+        "disclaimer": (
+            "Operational updates are operator-entered prototype audit records. "
+            "They do not verify real-world conditions or confirm that response "
+            "teams have physically arrived."
+        ),
+    }

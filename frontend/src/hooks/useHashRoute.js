@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
  *   #/                         -> dashboard
  *   #/incidents                -> incidents
  *   #/incidents/12?rec=5       -> incident (id 12, query.rec = "5")
- *   #/resources | #/recommendations | #/history
+ *   #/resources | #/recommendations | #/alerts | #/dispatch | #/history
  */
 export function parseHash(hash) {
   const raw = (hash || "").replace(/^#/, "") || "/";
@@ -20,7 +20,7 @@ export function parseHash(hash) {
     const id = Number(second);
     return Number.isInteger(id) && id > 0 ? { name: "incident", id, query } : { name: "notfound", query };
   }
-  if (["incidents", "resources", "recommendations", "history"].includes(first) && !second) {
+  if (["incidents", "resources", "recommendations", "alerts", "dispatch", "history"].includes(first) && !second) {
     return { name: first, query };
   }
   return { name: "notfound", query };

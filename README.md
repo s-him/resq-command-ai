@@ -3,7 +3,7 @@
 > **ACADEMIC PROTOTYPE | SIMULATED / REPORTED DATA ONLY | HUMAN REVIEW REQUIRED | NOT FOR REAL EMERGENCY DISPATCH**
 >
 > - This is a **college mini-project demonstration**, not a real emergency response service.
-> - It uses **sample or manually entered data only** and does **not** connect to emergency services, external disaster feeds, or live dispatch systems.
+> - It imports read-only public alerts from **GDACS** (multi-hazard) and **USGS** (earthquakes). It does **not** connect to emergency services or live dispatch systems.
 > - It does **not** predict disasters.
 > - Severity scores and resource matches are **unvalidated rule-based prototype estimates**.
 > - A **human operator** must review and approve or reject every recommendation. Approving a recommendation records an audit decision in SQLite and **never dispatches or deducts actual resources**.
@@ -14,29 +14,42 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, versioned database migrations (`001`–`003`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`010`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
 .
 ├── backend/
 │   ├── app/
+│   │   ├── alert_sources.py           # GDACS + USGS feed parsing and normalization
+│   │   ├── alert_repository.py        # External-alert persistence, deduplication and review
+│   │   ├── alert_service.py           # Feed synchronization orchestration
+│   │   ├── alert_schemas.py           # External-alert API contracts
+│   │   ├── geo.py                     # Haversine straight-line distance helper
+│   │   ├── response_plan_schemas.py   # Human-gated simulation plan contracts
+│   │   ├── response_plan_repository.py # Simulation reservations and audit log
+│   │   ├── alert_promotion_service.py  # Atomic reviewed-alert to incident promotion
+│   │   ├── agents/                    # Evidence, hazard, recency, location and review agents
+│   │   ├── assessment_orchestrator.py # Runs agents and combines their findings
+│   │   ├── assessment_repository.py   # Persists immutable assessment snapshots
+│   │   ├── assessment_schemas.py      # Assessment API contracts
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001, 002, 003)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-010)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
 │   │   ├── recommendations.py       # Rule-based resource matching & shortfall reporting
 │   │   ├── incident_repository.py   # Parameterized SQLite queries for incidents
+│   │   ├── incident_lifecycle_repository.py # Status transitions and operator timeline
 │   │   ├── resource_repository.py   # Parameterized SQLite queries for resources
 │   │   ├── recommendation_repository.py # Transactional queries for recommendations & action_history
 │   │   ├── errors.py                # Structured 422 validation error formatter
-│   │   └── routers/                 # /health, /api/incidents, /api/resources, /api/recommendations
+│   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 104 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 170 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -45,7 +58,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── services/                # Central fetch() client and domain API service modules
 │   │   ├── context/                 # Shared backend state (DataContext) and operation toasts
 │   │   ├── components/              # Layout shell, common UI primitives, map, and forms
-│   │   └── pages/                   # Dashboard, Incidents, IncidentDetails, Resources, Recommendations, ActivityHistory
+│   │   └── pages/                   # Dashboard, Alerts, Incidents, IncidentDetails, Resources, Recommendations, Dispatch Simulation, ActivityHistory
 │   ├── .env.example                 # Safe local environment template
 │   ├── package.json                 # Frontend packages and scripts
 │   ├── package-lock.json            # Lockfile for reproducible npm installs
@@ -72,8 +85,8 @@ This repository contains a full-stack academic decision-support prototype:
 Open **Windows PowerShell** and clone the repository:
 
 ```powershell
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd "<PROJECT_FOLDER_NAME>"
+git clone https://github.com/s-him/resq-command-ai.git
+cd resq-command-ai
 ```
 
 You will run the **backend** in **Terminal 1** and the **frontend** in **Terminal 2**.
@@ -102,7 +115,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`003` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, and `schema_migrations`).
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`010` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history.
 
 ---
 
@@ -202,3 +215,137 @@ npm run build
    - If you changed the backend port, update `VITE_API_BASE_URL` in `frontend/.env` and restart `npm run dev`.
 4. **CORS errors in the browser console:**
    `backend/app/main.py` allows `http://localhost:5173` and `http://127.0.0.1:5173`. Always open the frontend on port `5173` (Vite's configured port in `frontend/vite.config.js`). If port `5173` is already in use by another process, stop the old process so Vite binds to `5173`.
+
+---
+
+## Multi-agent alert assessment (Stage 2)
+
+An imported external alert can be assessed with five explainable specialist agents:
+
+1. Evidence quality — checks which source fields are present. This is completeness, not truth or probability.
+2. Hazard signal — preserves GDACS alert levels and USGS magnitude/depth without inventing a universal severity scale.
+3. Event recency — checks the age and plausibility of the provider event timestamp.
+4. Location evidence — records coordinate availability and explicitly leaves population exposure unknown.
+5. Review coordinator — assigns a conservative human-review queue label and explains why.
+
+Run an assessment:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/alerts/1/assessments
+```
+
+Read assessment history:
+
+```bash
+curl http://127.0.0.1:8000/api/alerts/1/assessments
+```
+
+Read one saved assessment:
+
+```bash
+curl http://127.0.0.1:8000/api/alerts/assessments/1
+```
+
+Each run is saved as an immutable snapshot in `alert_assessments`. The pipeline is currently deterministic and rule-based; it is not a trained ML model or an LLM. It does not create an incident, estimate exposed population, contact responders, allocate supplies, or dispatch teams.
+
+Migration `005` adds the assessment snapshot table and links it to the original external alert.
+
+---
+
+## Geographic resource planning (Stage 3)
+
+Resources can now be registered with optional latitude/longitude. The dashboard map plots both incident coordinates and registered resource depot coordinates. The recommendation engine uses Haversine straight-line distance to rank geocoded resources nearest-first when an incident also has coordinates; resources without coordinates remain as fallbacks. If the incident has no coordinates, the earlier stock-first behavior is retained.
+
+The nearby resource API is `GET /api/resources/nearby?latitude=28.6139&longitude=77.2090&radius_km=25`. It returns only available resources with positive stock, registered coordinates, and a calculated straight-line distance within the requested radius.
+
+Straight-line distance is not road distance or travel time. This stage does not model flood/cyclone/earthquake impact boundaries, estimate affected population, or claim that registered resources are verified or deployable.
+
+---
+
+## Human-gated response plan simulation (Stage 4)
+
+A response plan can be created only from a resource recommendation that has already been approved by an operator. Creating a plan leaves it pending. A second operator must explicitly approve the plan to move it to `simulated`, which records reservations in a separate simulation ledger. A plan can also be rejected. Completing a simulated plan releases its simulation-only reservations.
+
+**This is not a real dispatch system.** No emergency service is contacted, no team or vehicle is sent, and the physical `resources.quantity_available` value is never modified. The operator approval is a prototype UI gate; there is no authentication or role-based authorization yet. Active simulated reservations reduce the `simulation_remaining_quantity` shown in inventory and used by subsequent recommendations, preventing overlapping simulations from overbooking the same registered stock.
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | `/api/incidents/{incident_id}/response-plans` | Create a pending plan from an approved recommendation |
+| GET | `/api/response-plans` | List plans (optional `?status=pending`) |
+| GET | `/api/response-plans/{plan_id}` | Inspect a plan and its audit history |
+| POST | `/api/response-plans/{plan_id}/decision` | Approve into simulation or reject |
+| POST | `/api/response-plans/{plan_id}/complete` | Complete a simulation and release reservations |
+
+The frontend exposes this workflow under **Dispatch Simulation**. Each plan records its resource assignments, operator decisions, notes and timestamps.
+
+---
+
+## Alert Intelligence dashboard (Stage 5)
+
+The React application now includes an Alert Intelligence page at `#/alerts`. Operators can synchronize the configured GDACS and USGS feeds, filter imported alerts by provider/hazard/provider alert level/review state, open the original source report, record a reviewed/dismissed decision, and run the five-specialist assessment pipeline on an individual alert.
+
+The alert list and source status refresh from the local API every 60 seconds. Separately, the backend runs scheduled provider sync loops by default: GDACS every 6 minutes and USGS every 1 minute. Operators can also trigger an immediate sync with **Sync Public Feeds**. The browser refresh only reloads local API data; it does not itself fetch provider feeds.
+
+All alert records remain external, unverified reports until an operator independently verifies them. The assessment panel shows per-agent findings and limitations; it does not create an incident or authorize a response.
+
+---
+
+## Promote a reviewed alert into an incident (Stage 6)
+
+An external alert can be promoted only after its review state is `reviewed`. The operator must supply or confirm the incident hazard type, description, location, event/report time, affected-person estimate, and at least one help type. Coordinates are copied only when the provider supplied them; they remain optional.
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/alerts/1/promote \
+  -H 'Content-Type: application/json' \
+  -d '{"hazard_type":"flood","description":"Operator-verified flooding in homes near Example District.","location":"Example District","reported_at":"2026-11-25T10:00:00Z","people_affected":75,"help_needed":["evacuation","medical"],"latitude":26.9,"longitude":75.8}'
+```
+
+The operation is atomic: it creates one open incident using the existing prototype severity calculation and stores `linked_incident_id` / `linked_at` on the source alert. A duplicate promotion returns HTTP 409. The new incident immediately appears in `/api/incidents` and `/api/incidents/priority`, and can use the existing resource recommendation flow.
+
+The feed does not supply an affected-person count or help-needed list. Those values are never inferred from magnitude, provider alert level, or coordinates. This remains an operator-assisted prototype, not an automatic emergency decision.
+
+---
+
+## Automatic public-feed synchronization (Stage 7)
+
+The FastAPI backend now starts independent background sync loops when the application starts: GDACS every 6 minutes by default, and USGS every 1 minute by default. Provider requests run in worker threads so they do not block normal API handling. Each provider has its own loop and failure log. The Alert Intelligence page continues refreshing the local API list every 60 seconds; the provider sync itself happens in the backend.
+
+Automatic sync is enabled by default. Disable it for offline work:
+
+```bash
+RESQ_ALERT_AUTO_SYNC_ENABLED=false ./run.sh
+```
+
+Change the intervals (seconds) without editing code:
+
+```bash
+RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.sh
+```
+
+The intervals must be at least 30 seconds; invalid or smaller values fall back to defaults. Manual **Sync Public Feeds** remains available. Manual and scheduled syncs for the same provider are serialized so they cannot race one another.
+
+---
+
+## Resource readiness and inventory control (Stage 8)
+
+Resources can now be edited from the inventory page. Operators can update resource type, name, physical quantity, depot location, availability status, and optional coordinates. Each registration/update is recorded in `resource_change_history`, including before/after values, timestamp, and optional operator note.
+
+The API supports `PATCH /api/resources/{resource_id}` and `GET /api/resources/{resource_id}/history`. Inventory changes are transactional. Physical quantity cannot be reduced below active simulation reservations, and a resource cannot be marked unavailable while a simulated plan still reserves units. Complete the simulation to release the reservation first.
+
+The resource page displays physical stock separately from simulation-reserved and simulation-remaining quantities. This is still a prototype inventory register; it is not connected to a live hospital/agency inventory system.
+
+---
+
+## Incident operations lifecycle (Stage 9)
+
+Incidents now support an explicit operator lifecycle: `open → resolved → closed`, with `resolved → open` available for reopening when new information arrives. Closed incidents are final in this prototype. Status changes and operator-entered field notes are stored chronologically in `incident_updates`.
+
+| Method | URL | Purpose |
+|---|---|---|
+| PATCH | `/api/incidents/{incident_id}/status` | Apply an allowed status transition and optional note |
+| POST | `/api/incidents/{incident_id}/updates` | Add an operator note to the incident timeline |
+| GET | `/api/incidents/{incident_id}/updates` | Read status changes and operational notes; includes active simulation count |
+
+An incident cannot be closed while any response plan remains `simulated`. Complete those simulation plans first; the server enforces this rule transactionally. Open incidents remain in the priority queue; resolved and closed incidents do not.
+
+Operator notes are prototype audit entries and do not prove that responders attended or conditions changed. There is no operator authentication or role-based access control yet.
