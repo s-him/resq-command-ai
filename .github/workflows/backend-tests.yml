@@ -8,7 +8,6 @@ on:
       - feature/multi-agent-assessment
       - feature/geospatial-resource-planning
       - feature/dispatch-simulation
-      - feature/dispatch-simulation
       - feature/alert-intelligence-dashboard
   pull_request:
     branches:
@@ -16,6 +15,7 @@ on:
       - feature/disaster-alert-ingestion
       - feature/multi-agent-assessment
       - feature/geospatial-resource-planning
+      - feature/dispatch-simulation
 
 permissions:
   contents: read
