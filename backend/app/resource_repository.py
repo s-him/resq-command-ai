@@ -14,6 +14,9 @@ from app.schemas import AvailabilityStatus, Resource, ResourceCreate, utc_now
 
 def _row_to_resource(row: sqlite3.Row) -> Resource:
     """Convert one database row into a Resource object."""
+    row_keys = set(row.keys())
+    reserved = int(row["simulation_reserved_quantity"]) if "simulation_reserved_quantity" in row_keys else 0
+    physical = int(row["quantity_available"])
     return Resource(
         id=row["id"],
         resource_type=row["resource_type"],
@@ -24,6 +27,8 @@ def _row_to_resource(row: sqlite3.Row) -> Resource:
         created_at=row["created_at"],
         latitude=row["latitude"],
         longitude=row["longitude"],
+        simulation_reserved_quantity=reserved,
+        simulation_remaining_quantity=max(0, physical - reserved),
     )
 
 
@@ -53,7 +58,20 @@ def create_resource(data: ResourceCreate) -> Resource:
         connection.commit()
         new_id = cursor.lastrowid
 
-        row = connection.execute("SELECT * FROM resources WHERE id = ?", (new_id,)).fetchone()
+        row = connection.execute(
+            """
+            SELECT r.*,
+                   COALESCE((
+                       SELECT SUM(rpi.assigned_quantity)
+                       FROM response_plan_items rpi
+                       JOIN response_plans rp ON rp.id = rpi.response_plan_id
+                       WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
+                   ), 0) AS simulation_reserved_quantity
+            FROM resources r
+            WHERE r.id = ?
+            """,
+            (new_id,),
+        ).fetchone()
         return _row_to_resource(row)
     except Exception:
         if connection.in_transaction:
@@ -67,7 +85,19 @@ def list_resources() -> list[Resource]:
     """Return every saved resource, oldest first."""
     connection = get_connection()
     try:
-        rows = connection.execute("SELECT * FROM resources ORDER BY id").fetchall()
+        rows = connection.execute(
+            """
+            SELECT r.*,
+                   COALESCE((
+                       SELECT SUM(rpi.assigned_quantity)
+                       FROM response_plan_items rpi
+                       JOIN response_plans rp ON rp.id = rpi.response_plan_id
+                       WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
+                   ), 0) AS simulation_reserved_quantity
+            FROM resources r
+            ORDER BY r.id
+            """
+        ).fetchall()
         return [_row_to_resource(row) for row in rows]
     finally:
         connection.close()
@@ -79,9 +109,16 @@ def list_available_resources() -> list[Resource]:
     try:
         rows = connection.execute(
             """
-            SELECT * FROM resources
-            WHERE availability_status = ? AND quantity_available > 0
-            ORDER BY id
+            SELECT r.*,
+                   COALESCE((
+                       SELECT SUM(rpi.assigned_quantity)
+                       FROM response_plan_items rpi
+                       JOIN response_plans rp ON rp.id = rpi.response_plan_id
+                       WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
+                   ), 0) AS simulation_reserved_quantity
+            FROM resources r
+            WHERE r.availability_status = ? AND r.quantity_available > 0
+            ORDER BY r.id
             """,
             (AvailabilityStatus.AVAILABLE.value,),
         ).fetchall()
@@ -102,11 +139,23 @@ def list_nearby_resources(
     try:
         rows = connection.execute(
             """
-            SELECT * FROM resources
-            WHERE availability_status = ?
-              AND quantity_available > 0
-              AND latitude IS NOT NULL
-              AND longitude IS NOT NULL
+            SELECT r.*,
+                   COALESCE((
+                       SELECT SUM(rpi.assigned_quantity)
+                       FROM response_plan_items rpi
+                       JOIN response_plans rp ON rp.id = rpi.response_plan_id
+                       WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
+                   ), 0) AS simulation_reserved_quantity
+            FROM resources r
+            WHERE r.availability_status = ?
+              AND r.quantity_available > COALESCE((
+                  SELECT SUM(rpi.assigned_quantity)
+                  FROM response_plan_items rpi
+                  JOIN response_plans rp ON rp.id = rpi.response_plan_id
+                  WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
+              ), 0)
+              AND r.latitude IS NOT NULL
+              AND r.longitude IS NOT NULL
             """,
             (AvailabilityStatus.AVAILABLE.value,),
         ).fetchall()
