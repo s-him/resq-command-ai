@@ -12,7 +12,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 APP_NAME = "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine"
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.7.0"
 APP_DESCRIPTION = (
     "Academic prototype for a college mini-project. "
     "Uses manually entered reports and read-only public alerts from GDACS and USGS. "
@@ -25,3 +25,30 @@ APP_DESCRIPTION = (
 DATA_DIR = BASE_DIR / "data"
 DATABASE_PATH = Path(os.environ.get("RELIEF_DATABASE_PATH", DATA_DIR / "relief.db"))
 
+
+
+def _read_bool(name: str, default: bool) -> bool:
+    """Read a conventional environment boolean without failing app startup."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _read_positive_int(name: str, default: int, minimum: int = 30) -> int:
+    """Read a positive interval; invalid or too-small values fall back safely."""
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if value >= minimum else default
+
+
+# Background provider refresh. Disable with RESQ_ALERT_AUTO_SYNC_ENABLED=false.
+ALERT_AUTO_SYNC_ENABLED = _read_bool("RESQ_ALERT_AUTO_SYNC_ENABLED", True)
+GDACS_SYNC_INTERVAL_SECONDS = _read_positive_int(
+    "RESQ_GDACS_SYNC_INTERVAL_SECONDS", 360
+)
+USGS_SYNC_INTERVAL_SECONDS = _read_positive_int(
+    "RESQ_USGS_SYNC_INTERVAL_SECONDS", 60
+)
