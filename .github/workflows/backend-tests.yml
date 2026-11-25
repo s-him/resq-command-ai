@@ -7,11 +7,13 @@ on:
       - feature/disaster-alert-ingestion
       - feature/multi-agent-assessment
       - feature/geospatial-resource-planning
+      - feature/dispatch-simulation
   pull_request:
     branches:
       - main
       - feature/disaster-alert-ingestion
       - feature/multi-agent-assessment
+      - feature/geospatial-resource-planning
 
 permissions:
   contents: read
