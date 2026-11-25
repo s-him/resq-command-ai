@@ -337,3 +337,14 @@ def list_resource_history(resource_id: int) -> list[dict]:
         ]
     finally:
         connection.close()
+
+
+
+def get_resource_by_id(resource_id: int) -> Resource | None:
+    """Return a single resource, including simulation reservation totals."""
+    connection = get_connection()
+    try:
+        row = _resource_with_reservations(connection, resource_id)
+        return _row_to_resource(row) if row is not None else None
+    finally:
+        connection.close()
