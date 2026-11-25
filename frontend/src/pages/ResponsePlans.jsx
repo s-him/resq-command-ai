@@ -23,7 +23,7 @@ import {
 } from "../utils/format";
 
 const PLAN_DISCLAIMER =
-  "Academic simulation only. No emergency service is contacted, no vehicle/team is dispatched, and physical inventory quantities are not changed.";
+  "Academic simulation only. No emergency service is contacted, no vehicle/team is dispatched, and physical inventory quantities are not changed. Operator approval is a prototype UI gate, not authenticated authorization.";
 
 function planCode(id) {
   return `PLAN-${String(id).padStart(4, "0")}`;
