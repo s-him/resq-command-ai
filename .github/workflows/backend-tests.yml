@@ -12,7 +12,6 @@ on:
       - feature/reviewed-alert-to-incident
       - feature/automatic-alert-sync
       - feature/resource-inventory-management
-      - feature/resource-inventory-management
       - feature/incident-operations-lifecycle
   pull_request:
     branches:
@@ -24,6 +23,7 @@ on:
       - feature/alert-intelligence-dashboard
       - feature/reviewed-alert-to-incident
       - feature/automatic-alert-sync
+      - feature/resource-inventory-management
 
 permissions:
   contents: read
