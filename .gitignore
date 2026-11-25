@@ -1,0 +1,29 @@
+# Python virtual environments & caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node dependencies & frontend build output
+node_modules/
+dist/
+
+# Local environment files & secrets (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Local SQLite databases, backups, and journals
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+*.log

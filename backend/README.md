@@ -372,7 +372,7 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 Stop the server first, then copy `data\relief.db` in PowerShell:
 
 ```powershell
-cd "C:\Users\flexy\OneDrive\Desktop\im low on gas and you need a jacket\backend"
+cd backend
 Copy-Item data\relief.db "data\relief.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss').db"
 ```
 

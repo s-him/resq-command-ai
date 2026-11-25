@@ -1,4 +1,14 @@
+# Dependencies & build output
 node_modules/
 dist/
-.env
 
+# Local environment files (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Editor & OS logs
+npm-debug.log*
+.DS_Store
+Thumbs.db
