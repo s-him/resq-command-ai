@@ -147,7 +147,7 @@ Expected response:
 {
   "status": "ok",
   "app": "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "database": "connected",
   "mode": "academic-prototype"
 }
@@ -371,7 +371,7 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | Table | Key constraints & relationships |
 |---|---|
 | `incidents` | `id` PK; `people_affected >= 0`; `status IN ('open', 'resolved', 'closed')`; paired optional `latitude` (`-90..90`) and `longitude` (`-180..180`); `severity_*` columns. Indexed on `status`. |
-| `resources` | `id` PK; `quantity_available >= 0`; `availability_status IN ('available', 'limited', 'unavailable')`; optional paired latitude/longitude coordinates added by migration 006. |
+| `resources` | `id` PK; `quantity_available >= 0`; `availability_status IN ('available', 'limited', 'unavailable')`; optional paired latitude/longitude coordinates added by migration 006. Physical quantity is kept separate from active simulation reservations. |
 | `recommendations` | `id` PK; `incident_id` FK → `incidents(id)`; `status IN ('pending', 'approved', 'rejected')`; JSON `unavailable_needs` & `insufficient_needs` (unmatched gaps); `decision_note`, `decided_at`. Indexed on `incident_id`. |
 | `recommendation_items` | `id` PK; `recommendation_id` FK → `recommendations(id)`; `resource_id` FK → `resources(id)`; `recommended_quantity > 0`; `available_quantity >= 0`; `for_help_needed` (JSON list); `explanation`; optional `distance_km` and `distance_basis`; `UNIQUE (recommendation_id, resource_id)`. Indexed on `recommendation_id` and `resource_id`. |
 | `action_history` | `id` PK; `incident_id` FK → `incidents(id)`; `recommendation_id` FK → `recommendations(id)`; `decision IN ('approved', 'rejected')`; optional `note`, `created_at`. Indexed on `incident_id` and `recommendation_id`. |
@@ -380,7 +380,7 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | `alert_assessments` | Immutable, foreign-key-linked snapshots of the five specialist-agent assessment outputs. |
 | `response_plans` | Human-gated plan state (`pending`, `simulated`, `rejected`, `completed`) linked to an incident and approved recommendation. |
 | `response_plan_items` | Snapshot of proposed resource assignments; reservation quantity is counted only while the parent plan is `simulated`. |
-| `response_plan_actions` | Append-only audit events for creation, simulation approval/rejection, and completion. |
+| `response_plan_actions` | Append-only audit events for creation, simulation approval/rejection, and completion. |\n| `resource_change_history` | Registration/update audit records with JSON before/after values, optional note, timestamp, and a foreign key to `resources`. |
 | `schema_migrations` | Tracks applied migration versions (`version` PK, `name`, `applied_at`). |
 
 ### How to back up the database before upgrading
@@ -598,3 +598,21 @@ RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.s
 ```
 
 Both intervals must be at least 30 seconds. `GET /api/alerts/sources` reports whether auto-sync is enabled and the configured interval. The browser's 60-second refresh only reloads local database content; provider data is refreshed by the backend loops. Manual sync remains available, and syncs for one provider are serialized.
+
+---
+
+## Resource readiness and inventory control (Stage 8)
+
+Resource records can be maintained from the React inventory page. The backend accepts partial updates through `PATCH /api/resources/{resource_id}` and returns an audit trail through `GET /api/resources/{resource_id}/history`.
+
+Editable fields: resource type, name, physical quantity, depot location, availability status, and paired optional coordinates. Each registration/update is recorded with before/after values, timestamp, and optional note in `resource_change_history`.
+
+### Simulation reservation safeguards
+
+- Physical `quantity_available` is never rewritten by a simulated response plan.
+- An inventory edit cannot reduce physical quantity below active simulated reservations.
+- A resource cannot be marked unavailable while a simulation reserves units from it.
+- The API uses `BEGIN IMMEDIATE` so the reservation check and inventory update are serialized with simulation approvals.
+- The UI displays physical quantity, simulation-reserved quantity, and simulation-remaining quantity separately.
+
+Migration `009` creates the audit table. Existing resources are preserved; earlier registrations are not backfilled into this new history table because their original change details were not stored.
