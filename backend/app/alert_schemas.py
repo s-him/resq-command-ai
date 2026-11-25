@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator\n\nfrom app.schemas import Incident
 
 
 class AlertSource(str, Enum):
@@ -105,6 +105,15 @@ class ExternalAlert(BaseModel):
     review_status: AlertReviewStatus
     reviewed_at: datetime | None = None
     review_note: str | None = None
+    linked_incident_id: int | None = None
+    linked_at: datetime | None = None
+
+
+class AlertPromotionResponse(BaseModel):
+    alert: ExternalAlert
+    incident: Incident
+    message: str
+    disclaimer: str
 
 
 class AlertListResponse(BaseModel):
