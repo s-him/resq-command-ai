@@ -881,7 +881,6 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (7, "007_create_response_plan_simulation_tables", _migration_007_create_response_plan_simulation_tables),
     (8, "008_link_reviewed_alerts_to_incidents", _migration_008_link_reviewed_alerts_to_incidents),
     (9, "009_create_resource_change_history", _migration_009_create_resource_change_history),
-    (9, "009_create_resource_change_history", _migration_009_create_resource_change_history),
 ]
 
 
