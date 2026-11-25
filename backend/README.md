@@ -24,6 +24,7 @@ backend/
 │   ├── alert_repository.py # External alert persistence, deduplication and review
 │   ├── alert_service.py    # Feed synchronization orchestration
 │   ├── alert_schemas.py    # External alert API contracts
+│   ├── geo.py              # Haversine straight-line distance helper
 │   ├── agents/             # Evidence, hazard, recency, location and review specialists
 │   ├── assessment_orchestrator.py # Runs the specialists and combines findings
 │   ├── assessment_repository.py   # Stores immutable assessment snapshots
@@ -374,6 +375,7 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | `action_history` | `id` PK; `incident_id` FK → `incidents(id)`; `recommendation_id` FK → `recommendations(id)`; `decision IN ('approved', 'rejected')`; optional `note`, `created_at`. Indexed on `incident_id` and `recommendation_id`. |
 | `external_alerts` | Provider-keyed public alerts; unique `(source, source_event_id)`; coordinates and review-status constraints. |
 | `alert_sync_runs` | Per-provider sync history, counts, status, timestamps and safe error summary. |
+| `alert_assessments` | Immutable, foreign-key-linked snapshots of the five specialist-agent assessment outputs. |
 | `schema_migrations` | Tracks applied migration versions (`version` PK, `name`, `applied_at`). |
 
 ### How to back up the database before upgrading
@@ -505,3 +507,23 @@ curl http://127.0.0.1:8000/api/alerts/assessments/1
 ```
 
 Migration `005` adds `alert_assessments`, linked to `external_alerts` by a foreign key. Assessment records are immutable snapshots; re-running the agents creates a new history row instead of silently overwriting the previous result.
+
+---
+
+## Geographic resource planning (Stage 3)
+
+Resource records accept optional coordinates. Both latitude and longitude must be provided together, and each is range-validated. Existing records remain valid with null coordinates.
+
+The resource inventory form accepts coordinates and the dashboard map plots resource depots alongside incident markers. Marker colour distinguishes resource availability status.
+
+### Nearby resource lookup
+
+| Method | URL | Purpose |
+|---|---|---|
+| GET | `/api/resources/nearby?latitude=28.6139&longitude=77.2090&radius_km=25` | List available, geocoded resources inside a straight-line radius, nearest first |
+
+The recommendation engine now ranks geocoded resources by Haversine distance when the incident has coordinates. Ungeocoded resources are retained as fallback candidates. If an incident has no coordinates, the prior stock-first ranking is retained. Each saved match records `distance_km` and `distance_basis`.
+
+**Distance limitation:** Haversine distance is a great-circle straight-line estimate. It is not road distance, driving time, an accessible route, or a hazard footprint. This stage does not estimate population exposure or determine whether a resource is deployable.
+
+Migration `006` adds optional `resources.latitude` / `resources.longitude` and the distance fields on `recommendation_items`. It uses additive column changes, preserving existing resource records and previously saved recommendations.
