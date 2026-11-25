@@ -91,11 +91,16 @@ def build_recommendation(
 ) -> tuple[list[RecommendedResourceItem], list[UnavailableNeed], list[InsufficientNeed], str]:
     """Match an incident's help_needed list against available resources."""
     # Safety filter: only resources that are "available" and have positive quantity.
+    def simulation_remaining(resource: Resource) -> int:
+        if resource.simulation_remaining_quantity is not None:
+            return resource.simulation_remaining_quantity
+        return resource.quantity_available
+
     eligible = [
         resource
         for resource in resources
         if resource.availability_status == AvailabilityStatus.AVAILABLE
-        and resource.quantity_available > 0
+        and simulation_remaining(resource) > 0
     ]
 
     grouped_needs = group_needs_by_resource_type(incident.help_needed)
@@ -132,7 +137,7 @@ def build_recommendation(
                     candidate_distance(resource)
                     if candidate_distance(resource) is not None
                     else math.inf,
-                    -resource.quantity_available,
+                    -simulation_remaining(resource),
                     resource.id,
                 )
             )
@@ -159,17 +164,18 @@ def build_recommendation(
             if remaining <= 0:
                 break
 
-            suggested = min(remaining, resource.quantity_available)
+            simulation_available = simulation_remaining(resource)
+            suggested = min(remaining, simulation_available)
             remaining -= suggested
 
-            if suggested == resource.quantity_available and remaining > 0:
+            if suggested == simulation_available and remaining > 0:
                 qty_note = (
-                    f"Suggested all {suggested} available unit(s) "
+                    f"Suggested all {suggested} simulation-unreserved unit(s) "
                     f"(estimated need: {desired} for {incident.people_affected} people affected)."
                 )
             else:
                 qty_note = (
-                    f"Suggested {suggested} of {resource.quantity_available} available unit(s) "
+                    f"Suggested {suggested} of {simulation_available} simulation-unreserved unit(s) "
                     f"(estimated need: {desired} for {incident.people_affected} people affected)."
                 )
 
@@ -187,7 +193,7 @@ def build_recommendation(
                     resource_type=resource.resource_type,
                     resource_location=resource.location,
                     recommended_quantity=suggested,
-                    available_quantity=resource.quantity_available,
+                    available_quantity=simulation_available,
                     for_help_needed=matching_help,
                     explanation=f"Matched '{resource_type.value}' for {help_label}. {qty_note}{distance_note}",
                     distance_km=round(distance_km, 2) if distance_km is not None else None,
