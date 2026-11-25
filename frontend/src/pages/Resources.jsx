@@ -239,7 +239,7 @@ export default function Resources() {
             </div>
             <div className="category-tile-num tabular">{formatNumber(cat.availUnits)}</div>
             <div className="category-tile-sub tabular">
-              available units · {cat.poolCount} pool(s)
+              simulation-unreserved units · {cat.poolCount} pool(s)
             </div>
           </button>
         ))}
