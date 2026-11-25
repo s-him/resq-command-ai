@@ -25,7 +25,7 @@ const NAV_GROUPS = [
         id: "dispatch",
         label: "Dispatch Simulation",
         path: "#/dispatch",
-        icon: "truck",
+        icon: "ambulance",
       },
     ],
   },
