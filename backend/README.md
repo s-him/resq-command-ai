@@ -553,4 +553,4 @@ A plan is created from a recommendation only after that recommendation has an `a
 - New resource recommendations use simulation-remaining quantities, not the physical total, so concurrent simulated plans cannot be double-booked.
 - Rejected and completed plans do not hold reservations. A failed over-reservation approval returns HTTP 409 and leaves the plan pending.
 
-**Safety boundary:** this is a college-project dispatch simulation. It does not contact emergency services, send vehicles/teams, notify responders, or guarantee real-world resource availability. A trained human operator must verify real conditions independently.
+**Safety boundary:** this is a college-project dispatch simulation. It does not contact emergency services, send vehicles/teams, notify responders, or guarantee real-world resource availability. The operator approval is not backed by user authentication or role-based access control. A trained human operator must verify real conditions independently.
