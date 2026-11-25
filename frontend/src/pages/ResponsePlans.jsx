@@ -104,6 +104,7 @@ export default function ResponsePlans() {
     try {
       const result = await decideResponsePlan(plan.id, decision, notes[plan.id] || "");
       await loadPlans();
+      await refreshAll();
       toast({
         type: decision === "approve" ? "success" : "info",
         title: `${planCode(plan.id)} ${decision === "approve" ? "simulation approved" : "rejected"}`,
@@ -127,6 +128,7 @@ export default function ResponsePlans() {
     try {
       await completeResponsePlan(plan.id, notes[plan.id] || "");
       await loadPlans();
+      await refreshAll();
       toast({
         type: "success",
         title: `${planCode(plan.id)} completed`,
