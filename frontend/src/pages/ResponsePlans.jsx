@@ -6,7 +6,7 @@ import Icon from "../components/common/Icon";
 import { SkeletonTable } from "../components/common/Skeleton";
 import { useData } from "../context/DataContext";
 import { useToast } from "../context/ToastContext";
-import { ApiError, describeError } from "../services/apiClient";
+import { describeError } from "../services/apiClient";
 import {
   completeResponsePlan,
   createResponsePlan,
@@ -159,7 +159,7 @@ export default function ResponsePlans() {
             <span>Refresh Plans</span>
           </button>
           <button type="button" className="btn btn-secondary" onClick={refreshAll} disabled={refreshing}>
-            <Icon name="refreshCw" size={15} />
+            <Icon name="refresh" size={15} />
             <span>Refresh Data</span>
           </button>
         </div>
@@ -229,7 +229,7 @@ export default function ResponsePlans() {
               </select>
             </div>
             <button type="submit" className="btn btn-primary" disabled={!selectedRecommendation || creating}>
-              <Icon name="clipboardCheck" size={15} />
+              <Icon name="checkCircle" size={15} />
               <span>{creating ? "Creating..." : "Create Pending Plan"}</span>
             </button>
           </form>
@@ -315,7 +315,7 @@ export default function ResponsePlans() {
 
                   {plan.decision_note && (
                     <div className="notice-box">
-                      <Icon name="messageSquare" size={15} />
+                      <Icon name="info" size={15} />
                       <div><strong>Decision note</strong><p>{plan.decision_note}</p></div>
                     </div>
                   )}
