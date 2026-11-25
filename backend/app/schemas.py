@@ -238,6 +238,8 @@ class Resource(BaseModel):
     created_at: datetime
     latitude: float | None = None
     longitude: float | None = None
+    simulation_reserved_quantity: int = 0
+    simulation_remaining_quantity: int | None = None
 
 
 class NearbyResource(Resource):
