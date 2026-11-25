@@ -48,7 +48,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 157 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 158 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -68,14 +68,38 @@ This repository contains a full-stack academic decision-support prototype:
 
 ---
 
-## Prerequisites (Fresh Windows 10 / 11 Machine)
+## Prerequisites
 
-1. **Python 3.10 or newer** (tested with Python 3.10–3.14)
-   - Verify in PowerShell: `python --version`
-   - Note: SQLite support is built into Python's standard library (`sqlite3`), so no separate database server installation is required.
-2. **Node.js 18.18+ or 20+ LTS** (includes `npm`)
-   - Verify in PowerShell: `node --version` and `npm --version`
-3. **Git** (to clone the repository)
+1. **Python 3.10 or newer** (tested with Python 3.10–3.14). SQLite is included in Python; no separate database server is required.
+2. **Node.js 22 LTS** (includes `npm`). Verify with `node --version` and `npm --version`.
+3. **Git**.
+4. A network connection for public GDACS/USGS feed synchronization.
+
+---
+
+## Quick Start (Fedora Linux)
+
+Install the system prerequisites once:
+
+```bash
+sudo dnf install python3 python3-pip nodejs npm git -y
+```
+
+From an existing clone (for example, `~/miniprojecthing`), fetch and switch to the complete feature branch:
+
+```bash
+cd ~/miniprojecthing
+git fetch origin
+git switch --track origin/feature/automatic-alert-sync
+chmod +x run.sh
+./run.sh
+```
+
+For a fresh clone, use `gh repo clone s-him/resq-command-ai` (after `gh auth login`) instead of the first `cd` command, then run the remaining commands inside the cloned directory.
+
+The launcher creates the Python virtual environment, installs backend and frontend dependencies, and starts both servers. Open **http://localhost:5173**. The API and Swagger docs are at **http://127.0.0.1:8000** and **http://127.0.0.1:8000/docs**. Press `Ctrl+C` in the launcher terminal to stop both services.
+
+The complete feature branch is used while its final review is open. After it is merged into `main`, update with `git switch main && git pull` instead.
 
 ---
 
@@ -283,7 +307,7 @@ The frontend exposes this workflow under **Dispatch Simulation**. Each plan reco
 
 The React application now includes an Alert Intelligence page at `#/alerts`. Operators can synchronize the configured GDACS and USGS feeds, filter imported alerts by provider/hazard/provider alert level/review state, open the original source report, record a reviewed/dismissed decision, and run the five-specialist assessment pipeline on an individual alert.
 
-The alert list and provider sync status refresh from the local API every 60 seconds. This is a UI refresh only; it does not fetch new provider data. Provider synchronization remains an explicit operator action through the **Sync Public Feeds** button.
+The alert list and provider status refresh from the local API every 60 seconds. The backend also synchronizes GDACS every 6 minutes and USGS every 1 minute by default. Operators can still trigger an immediate refresh through **Sync Public Feeds**.
 
 All alert records remain external, unverified reports until an operator independently verifies them. The assessment panel shows per-agent findings and limitations; it does not create an incident or authorize a response.
 
