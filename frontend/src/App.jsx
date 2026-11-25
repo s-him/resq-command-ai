@@ -6,6 +6,7 @@ import { DataProvider } from "./context/DataContext";
 import { ToastProvider } from "./context/ToastContext";
 import { navigate, useHashRoute } from "./hooks/useHashRoute";
 import ActivityHistory from "./pages/ActivityHistory";
+import Alerts from "./pages/Alerts";
 import Dashboard from "./pages/Dashboard";
 import IncidentDetails from "./pages/IncidentDetails";
 import Incidents from "./pages/Incidents";
@@ -27,6 +28,8 @@ function RoutedWorkspace({ route, onOpenCreateIncident }) {
       return <Recommendations />;
     case "dispatch":
       return <ResponsePlans />;
+    case "alerts":
+      return <Alerts />;
     case "history":
       return <ActivityHistory />;
     default:
