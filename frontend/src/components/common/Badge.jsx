@@ -28,6 +28,8 @@ const STATUS_ICONS = {
   pending: "clock",
   approved: "checkCircle",
   rejected: "xCircle",
+  simulated: "activity",
+  completed: "checkCircle",
   available: "checkCircle",
   limited: "alert",
   unavailable: "xCircle",
