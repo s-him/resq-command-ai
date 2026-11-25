@@ -14,6 +14,7 @@ from app.alert_schemas import (
     AlertSyncResponse,
     ExternalAlert,
 )
+from app.schemas import IncidentCreate
 
 router = APIRouter(prefix="/api/alerts", tags=["External Alerts"])
 
