@@ -19,7 +19,17 @@ from app import (
     recommendations,
     resource_repository,
 )
-from app.schemas import (\n    Incident,\n    IncidentCreate,\n    IncidentHistory,\n    IncidentOperatorNote,\n    IncidentStatusUpdate,\n    IncidentUpdateEntry,\n    IncidentUpdateList,\n    PriorityList,\n    Recommendation,\n)
+from app.schemas import (
+    Incident,
+    IncidentCreate,
+    IncidentHistory,
+    IncidentOperatorNote,
+    IncidentStatusUpdate,
+    IncidentUpdateEntry,
+    IncidentUpdateList,
+    PriorityList,
+    Recommendation,
+)
 
 router = APIRouter(prefix="/api/incidents", tags=["Incidents"])
 
