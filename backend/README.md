@@ -147,7 +147,7 @@ Expected response:
 {
   "status": "ok",
   "app": "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "database": "connected",
   "mode": "academic-prototype"
 }
@@ -375,7 +375,7 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | `recommendations` | `id` PK; `incident_id` FK → `incidents(id)`; `status IN ('pending', 'approved', 'rejected')`; JSON `unavailable_needs` & `insufficient_needs` (unmatched gaps); `decision_note`, `decided_at`. Indexed on `incident_id`. |
 | `recommendation_items` | `id` PK; `recommendation_id` FK → `recommendations(id)`; `resource_id` FK → `resources(id)`; `recommended_quantity > 0`; `available_quantity >= 0`; `for_help_needed` (JSON list); `explanation`; optional `distance_km` and `distance_basis`; `UNIQUE (recommendation_id, resource_id)`. Indexed on `recommendation_id` and `resource_id`. |
 | `action_history` | `id` PK; `incident_id` FK → `incidents(id)`; `recommendation_id` FK → `recommendations(id)`; `decision IN ('approved', 'rejected')`; optional `note`, `created_at`. Indexed on `incident_id` and `recommendation_id`. |
-| `external_alerts` | Provider-keyed public alerts; unique `(source, source_event_id)`; coordinates and review-status constraints. |
+| `external_alerts` | Provider-keyed public alerts; unique `(source, source_event_id)`; coordinates/review constraints; optional `linked_incident_id` and `linked_at` for human-approved promotion. |
 | `alert_sync_runs` | Per-provider sync history, counts, status, timestamps and safe error summary. |
 | `alert_assessments` | Immutable, foreign-key-linked snapshots of the five specialist-agent assessment outputs. |
 | `response_plans` | Human-gated plan state (`pending`, `simulated`, `rejected`, `completed`) linked to an incident and approved recommendation. |
@@ -564,3 +564,17 @@ A plan is created from a recommendation only after that recommendation has an `a
 The React application exposes the external alert workflow at `#/alerts`. The page reads `GET /api/alerts` and `GET /api/alerts/sources`, runs provider sync with `POST /api/alerts/sync`, records operator review through `POST /api/alerts/{id}/review`, and executes the specialist agents through `POST /api/alerts/{id}/assessments`.
 
 The page refreshes its local API view every 60 seconds. It does **not** call the provider feeds on that timer; new external data is fetched only when an operator explicitly synchronizes the feeds.
+
+---
+
+## Promote a reviewed external alert into an incident (Stage 6)
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | `/api/alerts/{alert_id}/promote` | Create and link one open incident from a reviewed alert |
+
+Promotion is rejected with HTTP 409 unless the external alert is already `reviewed` and has no linked incident. The request body is the existing `IncidentCreate` schema: `hazard_type`, `description`, `location`, `reported_at`, `people_affected`, `help_needed`, and optional paired `latitude` / `longitude`.
+
+The source alert and incident are updated inside one `BEGIN IMMEDIATE` transaction. The incident gets the existing prototype severity calculation and enters the existing incident priority workflow. The alert stores `linked_incident_id` and `linked_at`; a second promotion is rejected so one external event cannot create duplicate incidents.
+
+The provider is not allowed to invent affected-person counts or help-needed values. An operator must supply or verify those fields. Promotion does not approve a recommendation, allocate resources, or dispatch anyone.
