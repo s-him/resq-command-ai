@@ -11,6 +11,7 @@ import IncidentDetails from "./pages/IncidentDetails";
 import Incidents from "./pages/Incidents";
 import Recommendations from "./pages/Recommendations";
 import Resources from "./pages/Resources";
+import ResponsePlans from "./pages/ResponsePlans";
 
 function RoutedWorkspace({ route, onOpenCreateIncident }) {
   switch (route.name) {
@@ -24,6 +25,8 @@ function RoutedWorkspace({ route, onOpenCreateIncident }) {
       return <Resources />;
     case "recommendations":
       return <Recommendations />;
+    case "dispatch":
+      return <ResponsePlans />;
     case "history":
       return <ActivityHistory />;
     default:
