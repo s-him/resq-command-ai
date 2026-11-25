@@ -5,10 +5,10 @@ POST /api/resources  -> validate and save a new resource
 GET  /api/resources  -> list all registered resources
 """
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app import resource_repository
-from app.schemas import NearbyResourceList, Resource, ResourceCreate
+from app.schemas import NearbyResourceList, Resource, ResourceCreate, ResourceHistory, ResourceUpdate
 
 router = APIRouter(prefix="/api/resources", tags=["Resources"])
 
@@ -54,4 +54,44 @@ def list_nearby_resources(
             "They are not road distances or travel times. Only resources with "
             "registered coordinates and available positive stock are included."
         ),
+    }
+
+
+
+@router.patch("/{resource_id}", response_model=Resource)
+def update_resource(resource_id: int, update: ResourceUpdate) -> Resource:
+    """Update resource details while protecting active simulation reservations."""
+    try:
+        resource = resource_repository.update_resource(resource_id, update)
+    except resource_repository.ResourceUpdateConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    if resource is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Resource {resource_id} not found.",
+        )
+    return resource
+
+
+@router.get("/{resource_id}/history", response_model=ResourceHistory)
+def get_resource_history(resource_id: int) -> dict:
+    """Return the registration and inventory-change audit history for a resource."""
+    resource = next(
+        (item for item in resource_repository.list_resources() if item.id == resource_id),
+        None,
+    )
+    if resource is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Resource {resource_id} not found.",
+        )
+    entries = resource_repository.list_resource_history(resource_id)
+    return {
+        "resource_id": resource_id,
+        "count": len(entries),
+        "entries": entries,
     }
