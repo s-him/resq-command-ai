@@ -15,7 +15,7 @@ from app import incident_repository
 from app.config import APP_DESCRIPTION, APP_NAME, APP_VERSION
 from app.database import init_database
 from app.errors import validation_error_handler
-from app.routers import alerts, health, incidents, recommendations, resources
+from app.routers import alerts, assessments, health, incidents, recommendations, resources
 
 
 @asynccontextmanager
@@ -50,6 +50,7 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)
 # Register routers (groups of endpoints).
 app.include_router(health.router)
 app.include_router(alerts.router)
+app.include_router(assessments.router)
 app.include_router(incidents.router)
 app.include_router(resources.router)
 app.include_router(recommendations.router)
