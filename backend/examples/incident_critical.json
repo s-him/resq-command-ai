@@ -1,0 +1,9 @@
+{
+  "hazard_type": "earthquake",
+  "description": "Several buildings damaged; trapped residents and many injuries reported.",
+  "location": "Old Town, Ward 1",
+  "reported_at": "2026-11-19T11:30:00+05:30",
+  "people_affected": 300,
+  "help_needed": ["rescue", "medical", "shelter"]
+}
+

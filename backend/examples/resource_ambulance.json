@@ -1,0 +1,8 @@
+{
+  "resource_type": "ambulance",
+  "name": "City Hospital Ambulance Unit A",
+  "quantity_available": 3,
+  "location": "Central Depot, Ward 4",
+  "availability_status": "available"
+}
+

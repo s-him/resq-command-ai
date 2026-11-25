@@ -1,0 +1,8 @@
+{
+  "resource_type": "shelter",
+  "name": "Community Hall Emergency Shelter",
+  "quantity_available": 150,
+  "location": "Ward 12, High School Ground",
+  "availability_status": "available"
+}
+

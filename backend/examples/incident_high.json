@@ -1,0 +1,9 @@
+{
+  "hazard_type": "building_collapse",
+  "description": "Part of an apartment block collapsed; people may be trapped and injured.",
+  "location": "Sector 9, Lake View Apartments",
+  "reported_at": "2026-11-19T11:15:00+05:30",
+  "people_affected": 120,
+  "help_needed": ["medical", "shelter"]
+}
+

@@ -1,0 +1,9 @@
+{
+  "hazard_type": "flood",
+  "description": "Shallow water on a side street; a few families need drinking water.",
+  "location": "Ward 3, Market Lane",
+  "reported_at": "2026-11-19T11:00:00+05:30",
+  "people_affected": 5,
+  "help_needed": ["water", "food"]
+}
+

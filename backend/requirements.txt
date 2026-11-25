@@ -1,0 +1,12 @@
+# Web framework
+fastapi>=0.115
+
+# Server that runs the FastAPI app
+uvicorn[standard]>=0.30
+
+# Testing (pytest runs tests, httpx is needed by FastAPI's TestClient)
+pytest>=8.0
+httpx>=0.27
+
+# Note: SQLite support comes built into Python (the sqlite3 module).
+

@@ -1,0 +1,9 @@
+{
+  "hazard_type": "flood",
+  "description": "Families stranded on rooftops after the canal overflowed.",
+  "location": "Canal Colony, Ward 14",
+  "reported_at": "2026-11-19T09:00:00+05:30",
+  "people_affected": 40,
+  "help_needed": ["rescue", "water"]
+}
+
