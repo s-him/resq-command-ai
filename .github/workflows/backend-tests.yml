@@ -11,6 +11,8 @@ on:
       - feature/alert-intelligence-dashboard
       - feature/reviewed-alert-to-incident
       - feature/automatic-alert-sync
+      - feature/automatic-alert-sync
+      - feature/resource-inventory-management
   pull_request:
     branches:
       - main
