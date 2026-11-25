@@ -21,6 +21,12 @@ const NAV_GROUPS = [
         icon: "cpu",
         countKey: "pendingRecs",
       },
+      {
+        id: "dispatch",
+        label: "Dispatch Simulation",
+        path: "#/dispatch",
+        icon: "truck",
+      },
     ],
   },
   {
