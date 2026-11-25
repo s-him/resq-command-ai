@@ -278,6 +278,8 @@ class ResourceUpdate(BaseModel):
         coordinates_supplied = {"latitude", "longitude"}.intersection(self.model_fields_set)
         if coordinates_supplied and coordinates_supplied != {"latitude", "longitude"}:
             raise ValueError("Provide both latitude and longitude, or update neither")
+        if coordinates_supplied and ((self.latitude is None) != (self.longitude is None)):
+            raise ValueError("Provide both coordinates or clear both coordinates")
         return self
 
     @field_validator("note")
