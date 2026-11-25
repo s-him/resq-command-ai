@@ -143,7 +143,7 @@ def test_indexes_and_schema_migrations_exist_after_init(client):
         "idx_recommendation_items_recommendation_id",
         "idx_recommendation_items_resource_id",
     }.issubset(index_names)
-    assert applied == {1, 2, 3, 4, 5}
+    assert applied == {1, 2, 3, 4, 5, 6}
 
 
 # ---------- Upgrading a pre-upgrade legacy database ----------
@@ -236,7 +236,7 @@ def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     first = database.init_database()
     second = database.init_database()
 
-    assert first == [1, 2, 3, 4, 5]
+    assert first == [1, 2, 3, 4, 5, 6]
     assert second == []
 
     connection = database.get_connection()
@@ -245,7 +245,7 @@ def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     finally:
         connection.close()
 
-    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5]
+    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6]
 
 
 # ---------- Invalid legacy rows halt safely without losing data ----------
