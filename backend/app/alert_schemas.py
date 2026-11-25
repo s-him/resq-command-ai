@@ -3,7 +3,9 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator\n\nfrom app.schemas import Incident
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas import Incident
 
 
 class AlertSource(str, Enum):
