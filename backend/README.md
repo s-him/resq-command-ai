@@ -147,7 +147,7 @@ Expected response:
 {
   "status": "ok",
   "app": "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "database": "connected",
   "mode": "academic-prototype"
 }
@@ -563,7 +563,7 @@ A plan is created from a recommendation only after that recommendation has an `a
 
 The React application exposes the external alert workflow at `#/alerts`. The page reads `GET /api/alerts` and `GET /api/alerts/sources`, runs provider sync with `POST /api/alerts/sync`, records operator review through `POST /api/alerts/{id}/review`, and executes the specialist agents through `POST /api/alerts/{id}/assessments`.
 
-The page refreshes its local API view every 60 seconds. It does **not** call the provider feeds on that timer; new external data is fetched only when an operator explicitly synchronizes the feeds.
+The page refreshes its local API view every 60 seconds. The backend also synchronizes GDACS and USGS independently in the background when automatic sync is enabled (GDACS every 360 seconds and USGS every 60 seconds by default). The page timer itself does not call provider feeds; manual synchronization remains available.
 
 ---
 
