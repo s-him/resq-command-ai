@@ -102,7 +102,7 @@ export default function Resources() {
       const matching = resources.data.filter((r) => r.resource_type === type);
       const availUnits = matching
         .filter((r) => r.availability_status === "available")
-        .reduce((sum, r) => sum + (r.quantity_available || 0), 0);
+        .reduce((sum, r) => sum + (r.simulation_remaining_quantity ?? r.quantity_available ?? 0), 0);
       return {
         type,
         poolCount: matching.length,
@@ -351,6 +351,12 @@ export default function Resources() {
                       <div className="resource-qty-val tabular">
                         {formatNumber(res.quantity_available)}
                       </div>
+                      <div className="cell-sub tabular">
+                        Simulation reserved: {formatNumber(res.simulation_reserved_quantity || 0)}
+                      </div>
+                      <div className="cell-sub tabular">
+                        Remaining for simulation: {formatNumber(res.simulation_remaining_quantity ?? res.quantity_available)}
+                      </div>
                     </div>
                     <StatusBadge status={res.availability_status} />
                   </div>
@@ -383,7 +389,9 @@ export default function Resources() {
                     <th>Category</th>
                     <th>Location</th>
                     <th>Coordinates</th>
-                    <th>Quantity Available</th>
+                    <th>Physical Quantity</th>
+                    <th>Simulation Reserved</th>
+                    <th>Simulation Remaining</th>
                     <th>Availability Status</th>
                     <th>Registered (UTC)</th>
                   </tr>
@@ -404,8 +412,14 @@ export default function Resources() {
                           ? `${res.latitude.toFixed(4)}, ${res.longitude.toFixed(4)}`
                           : "—"}
                       </td>
-                      <td data-label="Quantity Available" className="tabular font-medium">
+                      <td data-label="Physical Quantity" className="tabular font-medium">
                         {formatNumber(res.quantity_available)}
+                      </td>
+                      <td data-label="Simulation Reserved" className="tabular">
+                        {formatNumber(res.simulation_reserved_quantity || 0)}
+                      </td>
+                      <td data-label="Simulation Remaining" className="tabular font-medium">
+                        {formatNumber(res.simulation_remaining_quantity ?? res.quantity_available)}
                       </td>
                       <td data-label="Availability Status">
                         <StatusBadge status={res.availability_status} />
