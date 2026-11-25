@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app import alert_repository, alert_service
+from app import alert_promotion_service, alert_repository, alert_service, incident_repository
 from app.alert_schemas import (
-    AlertListResponse,
+    AlertListResponse,\n    AlertPromotionResponse,
     AlertReviewRequest,
     AlertReviewStatus,
     AlertSource,
@@ -71,3 +71,50 @@ def review_external_alert(alert_id: int, request: AlertReviewRequest) -> dict:
             detail=f"External alert {alert_id} not found.",
         )
     return alert
+
+
+
+@router.post(
+    "/{alert_id}/promote",
+    response_model=AlertPromotionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def promote_reviewed_alert(alert_id: int, incident_data: IncidentCreate) -> dict:
+    """Create one incident from a reviewed external alert using operator-supplied facts.
+
+    People affected, help needed, incident description, hazard type and location
+    are explicitly provided by the operator. Provider data is not used to guess
+    these life-safety inputs.
+    """
+    try:
+        incident_id = alert_promotion_service.promote_alert_to_incident(
+            alert_id,
+            incident_data,
+        )
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except alert_promotion_service.AlertPromotionConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    alert = alert_repository.get_alert_by_id(alert_id)
+    incident = incident_repository.get_incident_by_id(incident_id)
+    return {
+        "alert": alert,
+        "incident": incident,
+        "message": (
+            f"Reviewed external alert #{alert_id} was linked to incident "
+            f"#{incident_id}. The incident is now included in the normal priority "
+            "and resource-recommendation workflows."
+        ),
+        "disclaimer": (
+            "The incident fields were supplied or confirmed by an operator. "
+            "The existing incident severity score is an unvalidated prototype "
+            "estimate, not emergency guidance. Promotion does not dispatch resources."
+        ),
+    }
