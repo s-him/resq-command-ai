@@ -598,3 +598,32 @@ RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.s
 ```
 
 Both intervals must be at least 30 seconds. `GET /api/alerts/sources` reports whether auto-sync is enabled and the configured interval. The browser's 60-second refresh only reloads local database content; provider data is refreshed by the backend loops. Manual sync remains available, and syncs for one provider are serialized.
+
+
+---
+
+## Automatic GDACS and USGS synchronization
+
+When the FastAPI application starts, it starts two independent background loops:
+- GDACS: every 6 minutes by default
+- USGS: every 1 minute by default
+
+These intervals can be changed with environment variables. Disable automatic sync for offline use:
+
+```bash
+RESQ_ALERT_AUTO_SYNC_ENABLED=false uvicorn app.main:app --reload
+```
+
+Change intervals in seconds:
+
+```bash
+RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 uvicorn app.main:app --reload
+```
+
+The intervals must be at least 30 seconds. Manual sync through `POST /api/alerts/sync`
+remains available. The backend serializes manual and background syncs per provider.
+Tests explicitly disable background feed requests and use mocked provider responses.
+
+For a one-command Fedora/Linux launch of both the backend and React frontend, run
+`./run.sh` from the repository root. See the root README for prerequisites and
+browser URLs.
