@@ -7,6 +7,7 @@ import { SkeletonTable } from "../components/common/Skeleton";
 import { useToast } from "../context/ToastContext";
 import { describeError } from "../services/apiClient";
 import {
+  listAlertAssessments,
   listAlertSources,
   listAlerts,
   reviewAlert,
@@ -167,6 +168,7 @@ export default function Alerts() {
   const [workingAlertId, setWorkingAlertId] = useState(null);
   const [reviewNotes, setReviewNotes] = useState({});
   const [assessments, setAssessments] = useState({});
+  const [assessmentHistory, setAssessmentHistory] = useState({});
   const [assessingAlertId, setAssessingAlertId] = useState(null);
 
   const loadData = useCallback(async ({ silent = false } = {}) => {
@@ -258,6 +260,27 @@ export default function Alerts() {
       });
     } catch (err) {
       toast({ type: "error", title: "Assessment failed", message: describeError(err) });
+    } finally {
+      setAssessingAlertId(null);
+    }
+  }
+
+  async function handleAssessmentHistory(alert) {
+    if (assessingAlertId !== null) return;
+    setAssessingAlertId(alert.id);
+    try {
+      const history = await listAlertAssessments(alert.id);
+      setAssessmentHistory((current) => ({ ...current, [alert.id]: history.assessments }));
+      if (history.assessments.length > 0 && !assessments[alert.id]) {
+        setAssessments((current) => ({ ...current, [alert.id]: history.assessments[0] }));
+      }
+      toast({
+        type: "info",
+        title: "Assessment history loaded",
+        message: `${formatNumber(history.count)} saved assessment(s) for alert #${alert.id}.`,
+      });
+    } catch (err) {
+      toast({ type: "error", title: "Could not load assessment history", message: describeError(err) });
     } finally {
       setAssessingAlertId(null);
     }
@@ -426,6 +449,10 @@ export default function Alerts() {
                       <Icon name="cpu" size={14} />
                       <span>{assessingAlertId === alert.id ? "Assessing..." : "Run agent assessment"}</span>
                     </button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleAssessmentHistory(alert)} disabled={assessingAlertId !== null}>
+                      <Icon name="history" size={14} />
+                      <span>Assessment history</span>
+                    </button>
                     {alert.review_status === "new" && (
                       <>
                         <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleReview(alert, "reviewed")} disabled={busy}>
@@ -456,6 +483,21 @@ export default function Alerts() {
                   )}
 
                   {assessment && <AssessmentPanel assessment={assessment} />}
+                  {assessmentHistory[alert.id]?.length > 0 && (
+                    <div className="alert-history-list">
+                      <strong>Saved assessment runs</strong>
+                      {assessmentHistory[alert.id].map((entry) => (
+                        <button
+                          type="button"
+                          key={entry.id}
+                          className="btn btn-secondary btn-xs"
+                          onClick={() => setAssessments((current) => ({ ...current, [alert.id]: entry }))}
+                        >
+                          <span>#{entry.id} · {labelize(entry.review_priority)} · {formatRelative(entry.generated_at)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </article>
               );
             })}
