@@ -715,12 +715,49 @@ def _migration_005_create_alert_assessments(connection: sqlite3.Connection) -> N
     )
 
 
+
+def _migration_006_add_resource_coordinates_and_match_distances(
+    connection: sqlite3.Connection,
+) -> None:
+    """Add optional coordinates to resources and distances to saved suggestions."""
+    resource_columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(resources)").fetchall()
+    }
+    if "latitude" not in resource_columns:
+        connection.execute(
+            "ALTER TABLE resources ADD COLUMN latitude REAL "
+            "CHECK (latitude IS NULL OR (latitude >= -90 AND latitude <= 90))"
+        )
+    if "longitude" not in resource_columns:
+        connection.execute(
+            "ALTER TABLE resources ADD COLUMN longitude REAL "
+            "CHECK (longitude IS NULL OR (longitude >= -180 AND longitude <= 180))"
+        )
+
+    recommendation_item_columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(recommendation_items)").fetchall()
+    }
+    if "distance_km" not in recommendation_item_columns:
+        connection.execute(
+            "ALTER TABLE recommendation_items ADD COLUMN distance_km REAL "
+            "CHECK (distance_km IS NULL OR distance_km >= 0)"
+        )
+    if "distance_basis" not in recommendation_item_columns:
+        connection.execute(
+            "ALTER TABLE recommendation_items ADD COLUMN distance_basis TEXT "
+            "NOT NULL DEFAULT 'not_available' "
+            "CHECK (distance_basis IN ('haversine_straight_line', 'not_available'))"
+        )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
     (3, "003_normalize_recommendation_items", _migration_003_normalize_recommendation_items),
     (4, "004_create_external_alert_tables", _migration_004_create_external_alert_tables),
     (5, "005_create_alert_assessments", _migration_005_create_alert_assessments),
+    (6, "006_add_resource_coordinates_and_match_distances", _migration_006_add_resource_coordinates_and_match_distances),
 ]
 
 
