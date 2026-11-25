@@ -251,6 +251,8 @@ def update_resource(resource_id: int, data: ResourceUpdate) -> Resource | None:
         requested_status = supplied.get(
             "availability_status", current["availability_status"]
         )
+        if hasattr(requested_status, "value"):
+            requested_status = requested_status.value
 
         if requested_quantity < reserved:
             raise ResourceUpdateConflict(
