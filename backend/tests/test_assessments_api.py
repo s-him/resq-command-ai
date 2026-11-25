@@ -1,5 +1,7 @@
 """API tests for persisted specialist-agent assessments."""
 
+from datetime import datetime, timedelta, timezone
+
 from app import alert_service
 from app.alert_sources import NormalizedAlert
 
@@ -22,8 +24,8 @@ def sample_alert():
         latitude=26.9,
         longitude=75.8,
         depth_km=None,
-        event_at="2026-11-25T10:00:00+00:00",
-        source_updated_at="2026-11-25T11:00:00+00:00",
+        event_at=(datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
+        source_updated_at=datetime.now(timezone.utc).isoformat(),
         source_url="https://example.test/assessment",
         raw_data={"id": "FL:assessment-test"},
     )
