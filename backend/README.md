@@ -147,7 +147,7 @@ Expected response:
 {
   "status": "ok",
   "app": "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "database": "connected",
   "mode": "academic-prototype"
 }
@@ -391,7 +391,7 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | `response_plans` | Human-gated plan state (`pending`, `simulated`, `rejected`, `completed`) linked to an incident and approved recommendation. |
 | `response_plan_items` | Snapshot of proposed resource assignments; reservation quantity is counted only while the parent plan is `simulated`. |
 | `response_plan_actions` | Append-only audit events for creation, simulation approval/rejection, and completion. |
-| `resource_change_history` | Registration/update audit records with JSON before/after values, optional note, timestamp, and a foreign key to `resources`. |
+| `resource_change_history` | Registration/update audit records with JSON before/after values, optional note, timestamp, and a foreign key to `resources`. |\n| `incident_updates` | Immutable chronological incident status changes and operator notes, linked to `incidents`. |
 | `schema_migrations` | Tracks applied migration versions (`version` PK, `name`, `applied_at`). |
 
 ### How to back up the database before upgrading
@@ -627,3 +627,19 @@ Editable fields: resource type, name, physical quantity, depot location, availab
 - The UI displays physical quantity, simulation-reserved quantity, and simulation-remaining quantity separately.
 
 Migration `009` creates the audit table. Existing resources are preserved; earlier registrations are not backfilled into this new history table because their original change details were not stored.
+
+---
+
+## Incident operations lifecycle (Stage 9)
+
+| Method | URL | Purpose |
+|---|---|---|
+| PATCH | `/api/incidents/{incident_id}/status` | Change incident status and append a status-history event |
+| POST | `/api/incidents/{incident_id}/updates` | Append an operator note |
+| GET | `/api/incidents/{incident_id}/updates` | Return chronological operational history and count of active simulated plans |
+
+Allowed lifecycle transitions are `open → resolved`, `resolved → open` (reopen), and `resolved → closed`. Closed incidents are terminal. Repeating the current status or skipping directly from open to closed returns HTTP 409.
+
+An incident cannot be closed while it has one or more response plans in `simulated` state. Complete those simulation plans first. This check and status update run in one SQLite `BEGIN IMMEDIATE` transaction.
+
+Status changes and operator notes are stored in `incident_updates`. Notes on closed incidents are rejected. These are operator-entered prototype records; they do not independently verify field conditions or responder attendance. The application does not yet authenticate operator identities.
