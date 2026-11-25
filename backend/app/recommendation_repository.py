@@ -42,7 +42,9 @@ def _load_items_for_recommendation(
             ri.recommended_quantity,
             ri.available_quantity,
             ri.for_help_needed,
-            ri.explanation
+            ri.explanation,
+            ri.distance_km,
+            ri.distance_basis
         FROM recommendation_items ri
         JOIN resources r ON r.id = ri.resource_id
         WHERE ri.recommendation_id = ?
@@ -61,6 +63,8 @@ def _load_items_for_recommendation(
             available_quantity=row["available_quantity"],
             for_help_needed=json.loads(row["for_help_needed"]),
             explanation=row["explanation"],
+            distance_km=row["distance_km"],
+            distance_basis=row["distance_basis"],
         )
         for row in rows
     ]
@@ -142,8 +146,9 @@ def create_recommendation(
                 """
                 INSERT INTO recommendation_items
                     (recommendation_id, resource_id, recommended_quantity,
-                     available_quantity, for_help_needed, explanation)
-                VALUES (?, ?, ?, ?, ?, ?)
+                     available_quantity, for_help_needed, explanation,
+                    distance_km, distance_basis)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     new_id,
@@ -152,6 +157,8 @@ def create_recommendation(
                     item.available_quantity,
                     json.dumps([help_type.value for help_type in item.for_help_needed]),
                     item.explanation,
+                    item.distance_km,
+                    item.distance_basis,
                 ),
             )
 
