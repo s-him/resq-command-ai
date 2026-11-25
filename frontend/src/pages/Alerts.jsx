@@ -93,6 +93,11 @@ function SourceCard({ source }) {
         <p className="field-error alert-source-error">{last.error_message}</p>
       )}
       <p className="cell-sub">{source.update_interval}</p>
+      <p className="alert-auto-sync-note">
+        {source.automatic_sync_enabled
+          ? `Automatic sync enabled · every ${Math.round((source.configured_sync_interval_seconds || 0) / 60)} min`
+          : "Automatic sync disabled · manual sync only"}
+      </p>
     </article>
   );
 }
