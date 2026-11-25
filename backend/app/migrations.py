@@ -677,7 +677,8 @@ def _migration_004_create_external_alert_tables(connection: sqlite3.Connection) 
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
-    (3, "003_normalize_recommendation_items", _migration_003_normalize_recommendation_items),\n    (4, "004_create_external_alert_tables", _migration_004_create_external_alert_tables),
+    (3, "003_normalize_recommendation_items", _migration_003_normalize_recommendation_items),
+    (4, "004_create_external_alert_tables", _migration_004_create_external_alert_tables),
 ]
 
 
