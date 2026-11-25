@@ -63,6 +63,8 @@ function emptyResourceForm() {
     quantity_available: "3",
     location: "",
     availability_status: "available",
+    latitude: "",
+    longitude: "",
   };
 }
 
@@ -119,6 +121,8 @@ export default function Resources() {
         quantity_available: preset.quantity_available,
         location: preset.location,
         availability_status: preset.availability_status,
+        latitude: preset.latitude || "",
+        longitude: preset.longitude || "",
       });
     } else {
       setForm(emptyResourceForm());
@@ -138,6 +142,18 @@ export default function Resources() {
     if (!Number.isInteger(qty) || qty < 0 || qty > 1_000_000) {
       errs.quantity_available = "Quantity must be a whole number from 0 to 1,000,000.";
     }
+    const hasLatitude = form.latitude.trim() !== "";
+    const hasLongitude = form.longitude.trim() !== "";
+    if (hasLatitude !== hasLongitude) {
+      errs.latitude = "Provide both latitude and longitude, or leave both empty.";
+      errs.longitude = "Provide both latitude and longitude, or leave both empty.";
+    }
+    if (hasLatitude && (!Number.isFinite(Number(form.latitude)) || Number(form.latitude) < -90 || Number(form.latitude) > 90)) {
+      errs.latitude = "Latitude must be between -90 and 90.";
+    }
+    if (hasLongitude && (!Number.isFinite(Number(form.longitude)) || Number(form.longitude) < -180 || Number(form.longitude) > 180)) {
+      errs.longitude = "Longitude must be between -180 and 180.";
+    }
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       setFormError("Please fix the highlighted fields.");
@@ -152,6 +168,8 @@ export default function Resources() {
         quantity_available: qty,
         location: form.location.trim(),
         availability_status: form.availability_status,
+        latitude: hasLatitude ? Number(form.latitude) : null,
+        longitude: hasLongitude ? Number(form.longitude) : null,
       });
       await refreshAll();
       toast({
@@ -341,6 +359,14 @@ export default function Resources() {
                     <Icon name="mapPin" size={14} />
                     <span>{res.location}</span>
                   </div>
+                  <div className="resource-card-meta">
+                    <Icon name="crosshair" size={14} />
+                    <span>
+                      {typeof res.latitude === "number" && typeof res.longitude === "number"
+                        ? `${res.latitude.toFixed(4)}, ${res.longitude.toFixed(4)}`
+                        : "Coordinates not registered"}
+                    </span>
+                  </div>
                 </article>
               ))}
             </div>
@@ -356,6 +382,7 @@ export default function Resources() {
                     <th>Name</th>
                     <th>Category</th>
                     <th>Location</th>
+                    <th>Coordinates</th>
                     <th>Quantity Available</th>
                     <th>Availability Status</th>
                     <th>Registered (UTC)</th>
@@ -372,6 +399,11 @@ export default function Resources() {
                       </td>
                       <td data-label="Category">{labelize(res.resource_type)}</td>
                       <td data-label="Location">{res.location}</td>
+                      <td data-label="Coordinates" className="tabular text-muted">
+                        {typeof res.latitude === "number" && typeof res.longitude === "number"
+                          ? `${res.latitude.toFixed(4)}, ${res.longitude.toFixed(4)}`
+                          : "—"}
+                      </td>
                       <td data-label="Quantity Available" className="tabular font-medium">
                         {formatNumber(res.quantity_available)}
                       </td>
@@ -539,6 +571,39 @@ export default function Resources() {
             {fieldErrors.location && (
               <span className="field-error">{fieldErrors.location}</span>
             )}
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="res-latitude">Latitude (optional)</label>
+            <input
+              id="res-latitude"
+              type="number"
+              min="-90"
+              max="90"
+              step="any"
+              placeholder="e.g. 28.6139"
+              value={form.latitude}
+              onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
+              disabled={submitting}
+            />
+            {fieldErrors.latitude && <span className="field-error">{fieldErrors.latitude}</span>}
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="res-longitude">Longitude (optional)</label>
+            <input
+              id="res-longitude"
+              type="number"
+              min="-180"
+              max="180"
+              step="any"
+              placeholder="e.g. 77.2090"
+              value={form.longitude}
+              onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
+              disabled={submitting}
+            />
+            {fieldErrors.longitude && <span className="field-error">{fieldErrors.longitude}</span>}
+            <span className="field-hint">Enter both coordinates to include this resource in the map and nearby matching.</span>
           </div>
 
           <div className="form-field">
