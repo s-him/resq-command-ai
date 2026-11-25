@@ -291,6 +291,16 @@ curl.exe -X POST http://127.0.0.1:8000/api/incidents -H "Content-Type: applicati
 | POST   | `/api/resources` | Validate and save a new resource           |
 | GET    | `/api/resources` | List all registered resources, oldest first |
 
+
+### Update a resource and inspect its audit history
+
+| Method | URL | Purpose |
+|---|---|---|
+| PATCH | `/api/resources/{resource_id}` | Update one or more resource fields and optionally provide an audit note |
+| GET | `/api/resources/{resource_id}/history` | Return registration and inventory-change history |
+
+Updates are partial. Latitude and longitude must be supplied together or cleared together. The service uses an immediate SQLite transaction to check current simulation reservations before changing stock. It rejects physical quantity reductions below active simulated reservations and rejects marking a reserved resource unavailable. Physical quantity is never reduced by a simulated plan.
+
 ### Fields (all required)
 
 | Field                 | Type         | Rules |
