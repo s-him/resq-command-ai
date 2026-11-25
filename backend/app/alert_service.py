@@ -113,7 +113,9 @@ def list_source_statuses() -> list[dict]:
             {
                 "source": source,
                 **metadata,
-                "automatic_sync_enabled": ALERT_AUTO_SYNC_ENABLED,\n                "configured_sync_interval_seconds": configured_interval if ALERT_AUTO_SYNC_ENABLED else None,\n                "last_sync": latest,
+                "automatic_sync_enabled": ALERT_AUTO_SYNC_ENABLED,
+                "configured_sync_interval_seconds": configured_interval if ALERT_AUTO_SYNC_ENABLED else None,
+                "last_sync": latest,
             }
         )
     return statuses
