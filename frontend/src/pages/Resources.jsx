@@ -186,10 +186,12 @@ export default function Resources() {
     const errs = {};
     if (form.name.trim().length < 2) errs.name = "Name must be at least 2 characters.";
     if (form.location.trim().length < 2) errs.location = "Location must be at least 2 characters.";
+
     const qty = Number(form.quantity_available);
     if (!Number.isInteger(qty) || qty < 0 || qty > 1_000_000) {
       errs.quantity_available = "Quantity must be a whole number from 0 to 1,000,000.";
     }
+
     const hasLatitude = form.latitude.trim() !== "";
     const hasLongitude = form.longitude.trim() !== "";
     if (hasLatitude !== hasLongitude) {
@@ -202,30 +204,36 @@ export default function Resources() {
     if (hasLongitude && (!Number.isFinite(Number(form.longitude)) || Number(form.longitude) < -180 || Number(form.longitude) > 180)) {
       errs.longitude = "Longitude must be between -180 and 180.";
     }
+
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       setFormError("Please fix the highlighted fields.");
       return;
     }
 
+    const payload = {
+      resource_type: form.resource_type,
+      name: form.name.trim(),
+      quantity_available: qty,
+      location: form.location.trim(),
+      availability_status: form.availability_status,
+      latitude: hasLatitude ? Number(form.latitude) : null,
+      longitude: hasLongitude ? Number(form.longitude) : null,
+    };
+
     setSubmitting(true);
     try {
-      const payload = {
-        resource_type: form.resource_type,
-        name: form.name.trim(),
-        quantity_available: qty,
-        location: form.location.trim(),
-        availability_status: form.availability_status,
-        latitude: hasLatitude ? Number(form.latitude) : null,
-        longitude: hasLongitude ? Number(form.longitude) : null,
-      };
-
       if (editingResourceId !== null) {
         const updated = await updateResource(editingResourceId, {
           ...payload,
           note: form.note.trim() || null,
         });
         await refreshAll();
+        setResourceHistory((current) => {
+          const next = { ...current };
+          delete next[updated.id];
+          return next;
+        });
         toast({
           type: "success",
           title: `${resourceCode(updated.id)} updated`,
@@ -242,15 +250,6 @@ export default function Resources() {
       }
       setModalOpen(false);
       setEditingResourceId(null);
-        resource_type: form.resource_type,
-        name: form.name.trim(),
-        quantity_available: qty,
-        location: form.location.trim(),
-        availability_status: form.availability_status,
-        latitude: hasLatitude ? Number(form.latitude) : null,
-        longitude: hasLongitude ? Number(form.longitude) : null,
-      });
-      setModalOpen(false);
     } catch (err) {
       if (err instanceof ApiError && err.kind === "validation") {
         setFieldErrors(err.fieldErrors || {});
