@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, versioned database migrations (`001`–`005`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching and a combined incident/resource map, versioned database migrations (`001`–`006`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -25,6 +25,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── alert_repository.py        # External-alert persistence, deduplication and review
 │   │   ├── alert_service.py           # Feed synchronization orchestration
 │   │   ├── alert_schemas.py           # External-alert API contracts
+│   │   ├── geo.py                     # Haversine straight-line distance helper
 │   │   ├── agents/                    # Evidence, hazard, recency, location and review agents
 │   │   ├── assessment_orchestrator.py # Runs agents and combines their findings
 │   │   ├── assessment_repository.py   # Persists immutable assessment snapshots
@@ -32,7 +33,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001-004)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-006)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -44,7 +45,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/incidents, /api/resources, /api/recommendations
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 131 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 145 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -110,7 +111,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`004` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, and `schema_migrations`).
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`006` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, and `schema_migrations`).
 
 ---
 
@@ -244,3 +245,13 @@ curl http://127.0.0.1:8000/api/alerts/assessments/1
 Each run is saved as an immutable snapshot in `alert_assessments`. The pipeline is currently deterministic and rule-based; it is not a trained ML model or an LLM. It does not create an incident, estimate exposed population, contact responders, allocate supplies, or dispatch teams.
 
 Migration `005` adds the assessment snapshot table and links it to the original external alert.
+
+---
+
+## Geographic resource planning (Stage 3)
+
+Resources can now be registered with optional latitude/longitude. The dashboard map plots both incident coordinates and registered resource depot coordinates. The recommendation engine uses Haversine straight-line distance to rank geocoded resources nearest-first when an incident also has coordinates; resources without coordinates remain as fallbacks. If the incident has no coordinates, the earlier stock-first behavior is retained.
+
+The nearby resource API is `GET /api/resources/nearby?latitude=28.6139&longitude=77.2090&radius_km=25`. It returns only available resources with positive stock, registered coordinates, and a calculated straight-line distance within the requested radius.
+
+Straight-line distance is not road distance or travel time. This stage does not model flood/cyclone/earthquake impact boundaries, estimate affected population, or claim that registered resources are verified or deployable.
