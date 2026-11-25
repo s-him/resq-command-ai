@@ -1,14 +1,12 @@
 # Backend – Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine
 
 > **Academic prototype for a college mini-project.**
-> - Uses **sample or manually entered data only**.
+> - Imports read-only public alert data from GDACS (multi-hazard) and USGS (earthquakes), alongside manually entered reports.
 > - It is **not** a real emergency system and does **not** connect to emergency services or live dispatch systems.
 > - It does **not** predict disasters.
 > - A **human operator** must approve or reject every recommendation.
 
-This folder contains the backend foundation: a FastAPI app with a health-check
-endpoint and a SQLite database helper. Features such as incident management,
-severity scoring and resource recommendations will be added in later steps.
+This backend provides a FastAPI API, SQLite persistence, manual incident reporting, prototype severity scoring, resource recommendations, operator decision logging, and read-only public alert ingestion. External alerts are stored separately from incidents until an operator reviews them.
 
 ---
 
@@ -22,6 +20,10 @@ backend/
 │   ├── config.py           # App name, version, database path (all settings in one place)
 │   ├── database.py         # SQLite connection (PRAGMA foreign_keys = ON) + init_database()
 │   ├── migrations.py       # Versioned SQLite migrations (schema_migrations, safe table rebuilds)
+│   ├── alert_sources.py    # GDACS/USGS feed fetch and normalization
+│   ├── alert_repository.py # External alert persistence, deduplication and review
+│   ├── alert_service.py    # Feed synchronization orchestration
+│   ├── alert_schemas.py    # External alert API contracts
 │   ├── schemas.py          # Pydantic models for incidents and resources
 │   ├── severity.py         # Rule-based severity scoring (prototype estimate)
 │   ├── prioritization.py   # Ranks open incidents by score, people affected, reported time
@@ -33,6 +35,7 @@ backend/
 │   └── routers/            # Endpoints, grouped by topic
 │       ├── __init__.py
 │       ├── health.py       # GET /health – is the server and database OK?
+│       ├── alerts.py       # /api/alerts – sync, list, source status and review
 │       ├── incidents.py    # POST/GET /api/incidents, /priority, /{id}/recommendation, /{id}/history
 │       ├── resources.py    # POST/GET /api/resources
 │       └── recommendations.py  # GET /api/recommendations/{id}, POST /{id}/decision
@@ -399,3 +402,60 @@ Before rebuilding any table, the migration checks for rows that violate the new 
 pytest
 ```
 
+
+---
+
+## External disaster alerts: GDACS and USGS
+
+External alerts are stored separately from confirmed or manually entered incidents.
+The ingestion layer retains provider event IDs and raw payloads, and uses a unique
+source/event key to avoid duplicates on repeat syncs. Refreshing an alert does not
+overwrite its human review status or note.
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | /api/alerts/sync | Manually sync one or both public feeds |
+| GET | /api/alerts | List/filter imported alerts |
+| GET | /api/alerts/sources | Show providers and their last sync result |
+| POST | /api/alerts/{alert_id}/review | Mark an alert reviewed or dismissed |
+
+### Sync the public feeds (Linux/macOS shell)
+
+Run with the backend server active:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/alerts/sync \
+  -H 'Content-Type: application/json' \
+  -d '{"sources":["gdacs","usgs"]}'
+```
+
+### Inspect alerts and feed status
+
+```bash
+curl 'http://127.0.0.1:8000/api/alerts?limit=50'
+curl http://127.0.0.1:8000/api/alerts/sources
+```
+
+### Record an operator review
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/alerts/1/review \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"reviewed","note":"Checked against the source bulletin."}'
+```
+
+Allowed review statuses are reviewed and dismissed. New alerts start as new.
+A review does not automatically create an incident, assign resources, contact
+responders, or dispatch anything.
+
+GDACS provides a public multi-hazard GeoJSON event API. The USGS summary feed
+used here provides all earthquakes from the past day. Provider availability
+and refresh cadence are controlled by the providers; this prototype syncs only
+when the API endpoint is called.
+
+### Migration 004
+
+Migration 004 creates external_alerts and alert_sync_runs without rebuilding
+or deleting any existing incident, resource, or recommendation data.
+
+---
