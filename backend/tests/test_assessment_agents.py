@@ -130,7 +130,10 @@ def test_review_coordinator_requires_interpretation_for_usgs():
 
 
 def test_orchestrator_returns_five_traceable_agent_results():
-    result = assess_alert(BASE_ALERT)
+    result = assess_alert(
+        BASE_ALERT,
+        as_of=datetime(2026, 11, 25, 12, 0, tzinfo=timezone.utc),
+    )
     assert result["assessment_status"] == "completed"
     assert result["review_priority"] == "priority_review"
     assert set(result["agents"]) == {
