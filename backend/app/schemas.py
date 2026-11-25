@@ -40,12 +40,7 @@ class HelpType(str, Enum):
 
 
 class IncidentStatus(str, Enum):
-    """Lifecycle status of an incident.
-
-    New incidents are always "open". "resolved" and "closed" are allowed so that
-    such records can be stored and loaded; they are left out of the priority list.
-    (There is no endpoint to change status yet.)
-    """
+    """Lifecycle status of an incident. Only open incidents are priority-ranked."""
 
     OPEN = "open"
     RESOLVED = "resolved"
@@ -151,6 +146,47 @@ class Incident(BaseModel):
     severity: SeverityAssessment
     latitude: float | None = None
     longitude: float | None = None
+
+
+
+class IncidentStatusUpdate(BaseModel):
+    """Request to move an incident through its operator-managed lifecycle."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    status: IncidentStatus
+    note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("note")
+    @classmethod
+    def blank_note_as_none(cls, value: str | None) -> str | None:
+        return value or None
+
+
+class IncidentOperatorNote(BaseModel):
+    """A free-form operational update recorded in the incident timeline."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    note: str = Field(min_length=3, max_length=1000)
+
+
+class IncidentUpdateEntry(BaseModel):
+    id: int
+    incident_id: int
+    event_type: str
+    previous_status: IncidentStatus | None = None
+    new_status: IncidentStatus | None = None
+    note: str | None = None
+    created_at: datetime
+
+
+class IncidentUpdateList(BaseModel):
+    incident_id: int
+    count: int
+    active_simulation_count: int
+    updates: list[IncidentUpdateEntry]
+    disclaimer: str
 
 
 class PriorityInfo(BaseModel):
