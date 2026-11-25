@@ -8,6 +8,7 @@ the endpoint code short and matches how incident_repository.py is structured.
 import sqlite3
 
 from app.database import get_connection
+from app.geo import haversine_km
 from app.schemas import AvailabilityStatus, Resource, ResourceCreate, utc_now
 
 
@@ -21,6 +22,8 @@ def _row_to_resource(row: sqlite3.Row) -> Resource:
         location=row["location"],
         availability_status=row["availability_status"],
         created_at=row["created_at"],
+        latitude=row["latitude"],
+        longitude=row["longitude"],
     )
 
 
@@ -33,8 +36,8 @@ def create_resource(data: ResourceCreate) -> Resource:
             """
             INSERT INTO resources
                 (resource_type, name, quantity_available, location,
-                 availability_status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+                 availability_status, created_at, latitude, longitude)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.resource_type.value,
@@ -43,6 +46,8 @@ def create_resource(data: ResourceCreate) -> Resource:
                 data.location,
                 data.availability_status.value,
                 utc_now().isoformat(),
+                data.latitude,
+                data.longitude,
             ),
         )
         connection.commit()
@@ -84,3 +89,43 @@ def list_available_resources() -> list[Resource]:
     finally:
         connection.close()
 
+
+
+
+def list_nearby_resources(
+    latitude: float,
+    longitude: float,
+    radius_km: float,
+) -> list[dict]:
+    """Return available, geocoded resources within a straight-line radius."""
+    connection = get_connection()
+    try:
+        rows = connection.execute(
+            """
+            SELECT * FROM resources
+            WHERE availability_status = ?
+              AND quantity_available > 0
+              AND latitude IS NOT NULL
+              AND longitude IS NOT NULL
+            """,
+            (AvailabilityStatus.AVAILABLE.value,),
+        ).fetchall()
+
+        nearby = []
+        for row in rows:
+            resource = _row_to_resource(row)
+            distance = haversine_km(
+                latitude,
+                longitude,
+                resource.latitude,
+                resource.longitude,
+            )
+            if distance <= radius_km:
+                payload = resource.model_dump(mode="json")
+                payload["distance_km"] = round(distance, 2)
+                nearby.append(payload)
+
+        nearby.sort(key=lambda item: (item["distance_km"], -item["quantity_available"], item["id"]))
+        return nearby
+    finally:
+        connection.close()
