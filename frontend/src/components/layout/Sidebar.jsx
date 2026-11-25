@@ -32,6 +32,7 @@ const NAV_GROUPS = [
   {
     heading: "MONITORING",
     items: [
+      { id: "alerts", label: "Alert Intelligence", path: "#/alerts", icon: "alert" },
       { id: "history", label: "Activity History", path: "#/history", icon: "history", countKey: "actions" },
     ],
   },
