@@ -272,6 +272,9 @@ class ResourceUpdate(BaseModel):
         supplied = editable_fields.intersection(self.model_fields_set)
         if not supplied:
             raise ValueError("Provide at least one resource field to update")
+        for field in supplied - {"latitude", "longitude"}:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
         coordinates_supplied = {"latitude", "longitude"}.intersection(self.model_fields_set)
         if coordinates_supplied and coordinates_supplied != {"latitude", "longitude"}:
             raise ValueError("Provide both latitude and longitude, or update neither")
