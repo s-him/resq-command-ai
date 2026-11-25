@@ -1,4 +1,4 @@
-import { expectArray, expectObject, request } from "./apiClient.js";
+import { expectObject, request } from "./apiClient.js";
 
 /** GET /api/response-plans -> ResponsePlanList */
 export async function listResponsePlans(status = null) {
