@@ -10,7 +10,7 @@ import { useData } from "../context/DataContext";
 import { useToast } from "../context/ToastContext";
 import { navigate } from "../hooks/useHashRoute";
 import { describeError } from "../services/apiClient";
-import { getIncident, getIncidentHistory } from "../services/incidentService";
+import { addIncidentUpdate, getIncident, getIncidentHistory, getIncidentUpdates, updateIncidentStatus } from "../services/incidentService";
 import {
   generateRecommendation,
   submitDecision,
@@ -35,6 +35,12 @@ export default function IncidentDetails({ incidentId }) {
 
   const [incident, setIncident] = useState(null);
   const [history, setHistory] = useState(null);
+  const [incidentUpdates, setIncidentUpdates] = useState([]);
+  const [activeSimulationCount, setActiveSimulationCount] = useState(0);
+  const [statusNote, setStatusNote] = useState("");
+  const [operatorNote, setOperatorNote] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [savingOperatorNote, setSavingOperatorNote] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -47,12 +53,15 @@ export default function IncidentDetails({ incidentId }) {
     setLoading(true);
     setError(null);
     try {
-      const [incData, histData] = await Promise.all([
+      const [incData, histData, updateData] = await Promise.all([
         getIncident(incidentId),
         getIncidentHistory(incidentId),
+        getIncidentUpdates(incidentId),
       ]);
       setIncident(incData);
       setHistory(histData);
+      setIncidentUpdates(updateData.updates);
+      setActiveSimulationCount(updateData.active_simulation_count);
     } catch (err) {
       setError(err);
     } finally {
@@ -115,6 +124,57 @@ export default function IncidentDetails({ incidentId }) {
     }
   }
 
+  async function handleStatusChange(nextStatus) {
+    if (!incident || updatingStatus) return;
+    setUpdatingStatus(true);
+    try {
+      const updated = await updateIncidentStatus(incident.id, nextStatus, statusNote);
+      setIncident(updated);
+      setStatusNote("");
+      await loadDetail();
+      await refreshAll();
+      toast({
+        type: "success",
+        title: `${incidentCode(incident.id)} marked ${nextStatus}`,
+        message: "The status change was recorded in the incident operational timeline.",
+      });
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Incident status could not be changed",
+        message: describeError(err),
+      });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  async function handleAddOperatorNote(event) {
+    event.preventDefault();
+    if (!incident || savingOperatorNote || operatorNote.trim().length < 3) return;
+    setSavingOperatorNote(true);
+    try {
+      await addIncidentUpdate(incident.id, operatorNote.trim());
+      const updates = await getIncidentUpdates(incident.id);
+      setIncidentUpdates(updates.updates);
+      setActiveSimulationCount(updates.active_simulation_count);
+      setOperatorNote("");
+      toast({
+        type: "success",
+        title: "Operational update recorded",
+        message: "The note has been added to the incident audit timeline.",
+      });
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Operational update could not be saved",
+        message: describeError(err),
+      });
+    } finally {
+      setSavingOperatorNote(false);
+    }
+  }
+
   if (loading && !incident) {
     return (
       <div className="page-stack">
@@ -152,6 +212,7 @@ export default function IncidentDetails({ incidentId }) {
     incidents: [incident],
     recommendations: history?.recommendations || [],
     actions,
+    incidentUpdates,
   });
 
   return (
@@ -210,6 +271,93 @@ export default function IncidentDetails({ incidentId }) {
             </span>
           </button>
         </div>
+      </section>
+
+      <section className="surface-card incident-lifecycle-panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="section-title">Operational Lifecycle</h3>
+            <p className="section-subtitle">
+              Status changes and field updates are timestamped in the incident audit log.
+            </p>
+          </div>
+          <CodeBadge>{activeSimulationCount} active simulation(s)</CodeBadge>
+        </div>
+
+        {incident.status === "open" && (
+          <div className="incident-status-actions">
+            <button type="button" className="btn btn-primary" onClick={() => handleStatusChange("resolved")} disabled={updatingStatus}>
+              <Icon name="checkCircle" size={15} />
+              <span>{updatingStatus ? "Saving..." : "Mark resolved"}</span>
+            </button>
+          </div>
+        )}
+        {incident.status === "resolved" && (
+          <div className="incident-status-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => handleStatusChange("open")} disabled={updatingStatus}>
+              <Icon name="refresh" size={15} />
+              <span>Reopen incident</span>
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => handleStatusChange("closed")} disabled={updatingStatus || activeSimulationCount > 0}>
+              <Icon name="lock" size={15} />
+              <span>{updatingStatus ? "Saving..." : "Close incident"}</span>
+            </button>
+          </div>
+        )}
+        {incident.status === "closed" && (
+          <div className="notice-box">
+            <Icon name="lock" size={15} />
+            <div>
+              <strong>Incident closed</strong>
+              <p>Closed incidents are final in this prototype. A new report should create a new incident record.</p>
+            </div>
+          </div>
+        )}
+
+        {activeSimulationCount > 0 && incident.status !== "closed" && (
+          <div className="notice-box incident-reservation-warning">
+            <Icon name="info" size={15} />
+            <div>
+              <strong>Closure blocked while simulations are active</strong>
+              <p>{activeSimulationCount} response simulation(s) must be completed before this incident can be closed. This guard is enforced by the backend.</p>
+            </div>
+          </div>
+        )}
+
+        {incident.status !== "closed" && (
+          <>
+            <div className="form-field incident-status-note">
+              <label htmlFor="incident-status-note">Status-change note (optional)</label>
+              <input
+                id="incident-status-note"
+                value={statusNote}
+                onChange={(event) => setStatusNote(event.target.value)}
+                maxLength={500}
+                placeholder="Reason for resolving, reopening, or closing…"
+                disabled={updatingStatus}
+              />
+            </div>
+            <form className="incident-operator-update-form" onSubmit={handleAddOperatorNote}>
+              <div className="form-field">
+                <label htmlFor="incident-operator-note">Operational update</label>
+                <textarea
+                  id="incident-operator-note"
+                  rows={2}
+                  maxLength={1000}
+                  minLength={3}
+                  value={operatorNote}
+                  onChange={(event) => setOperatorNote(event.target.value)}
+                  placeholder="Record a verified field update, shelter status, access issue, or follow-up…"
+                  disabled={savingOperatorNote}
+                />
+              </div>
+              <button type="submit" className="btn btn-secondary" disabled={savingOperatorNote || operatorNote.trim().length < 3}>
+                <Icon name="plus" size={14} />
+                <span>{savingOperatorNote ? "Saving..." : "Add timeline update"}</span>
+              </button>
+            </form>
+          </>
+        )}
       </section>
 
       {/* Two-column: Incident Info + Priority Assessment */}
