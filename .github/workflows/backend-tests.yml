@@ -6,6 +6,8 @@ on:
       - main
       - feature/disaster-alert-ingestion
       - feature/multi-agent-assessment
+      - feature/multi-agent-assessment
+      - feature/geospatial-resource-planning
   pull_request:
     branches:
       - main
