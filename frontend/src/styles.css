@@ -2606,3 +2606,30 @@ h4 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.alert-history-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.alert-history-list > strong {
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.alert-history-list .btn {
+  max-width: 100%;
+  text-align: left;
+}
+
+.alert-history-list .btn span {
+  overflow-wrap: anywhere;
+}
+
