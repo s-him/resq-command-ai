@@ -5,11 +5,14 @@ import ErrorState from "../components/common/ErrorState";
 import Icon from "../components/common/Icon";
 import { SkeletonTable } from "../components/common/Skeleton";
 import { useToast } from "../context/ToastContext";
+import { useData } from "../context/DataContext";
+import { navigate } from "../hooks/useHashRoute";
 import { describeError } from "../services/apiClient";
 import {
   listAlertAssessments,
   listAlertSources,
   listAlerts,
+  promoteAlertToIncident,
   reviewAlert,
   runAlertAssessment,
   syncAlertFeeds,
@@ -18,7 +21,9 @@ import {
   formatDateTime,
   formatNumber,
   formatRelative,
+  incidentCode,
   labelize,
+  toLocalInputValue,
 } from "../utils/format";
 
 const HAZARD_OPTIONS = [
@@ -151,6 +156,7 @@ function AssessmentPanel({ assessment }) {
 
 export default function Alerts() {
   const toast = useToast();
+  const { refreshAll } = useData();
   const [alerts, setAlerts] = useState([]);
   const [sources, setSources] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -170,6 +176,9 @@ export default function Alerts() {
   const [assessments, setAssessments] = useState({});
   const [assessmentHistory, setAssessmentHistory] = useState({});
   const [assessingAlertId, setAssessingAlertId] = useState(null);
+  const [promotingAlertId, setPromotingAlertId] = useState(null);
+  const [promotionForm, setPromotionForm] = useState(null);
+  const [promotionError, setPromotionError] = useState(null);
 
   const loadData = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -242,6 +251,115 @@ export default function Alerts() {
       });
     } catch (err) {
       toast({ type: "error", title: "Could not record review", message: describeError(err) });
+    } finally {
+      setWorkingAlertId(null);
+    }
+  }
+
+  function startPromotion(alert) {
+    if (alert.review_status !== "reviewed" || alert.linked_incident_id) return;
+    const supportedHazards = new Set([
+      "flood", "earthquake", "fire", "cyclone", "landslide",
+      "building_collapse", "chemical_spill", "other",
+    ]);
+    const eventDate = alert.event_at ? new Date(alert.event_at) : new Date();
+    const validDate = Number.isNaN(eventDate.getTime()) ? new Date() : eventDate;
+
+    setPromotionForm({
+      hazard_type: supportedHazards.has(alert.hazard_type) ? alert.hazard_type : "other",
+      description: String(alert.description || alert.title || "").slice(0, 1000),
+      location: alert.location || alert.country || "",
+      reported_at: toLocalInputValue(validDate),
+      people_affected: "",
+      help_needed: [],
+      latitude: alert.latitude === null ? "" : String(alert.latitude),
+      longitude: alert.longitude === null ? "" : String(alert.longitude),
+    });
+    setPromotionError(null);
+    setPromotingAlertId(alert.id);
+  }
+
+  function updatePromotionField(field, value) {
+    setPromotionForm((current) => current ? { ...current, [field]: value } : current);
+  }
+
+  function togglePromotionHelp(helpType, checked) {
+    setPromotionForm((current) => {
+      if (!current) return current;
+      const next = checked
+        ? [...current.help_needed, helpType]
+        : current.help_needed.filter((item) => item !== helpType);
+      return { ...current, help_needed: next };
+    });
+  }
+
+  async function handlePromotionSubmit(event, alert) {
+    event.preventDefault();
+    if (!promotionForm || promotingAlertId !== alert.id) return;
+    setPromotionError(null);
+
+    const peopleText = String(promotionForm.people_affected).trim();
+    const people = Number(peopleText);
+    if (!peopleText || !Number.isInteger(people) || people < 0 || people > 1000000) {
+      setPromotionError("Enter the operator-verified affected-person count (0 to 1,000,000).");
+      return;
+    }
+    if (promotionForm.help_needed.length === 0) {
+      setPromotionError("Select at least one type of help required.");
+      return;
+    }
+    const hasLatitude = String(promotionForm.latitude).trim() !== "";
+    const hasLongitude = String(promotionForm.longitude).trim() !== "";
+    if (hasLatitude !== hasLongitude) {
+      setPromotionError("Provide both coordinates or leave both empty.");
+      return;
+    }
+    const latitude = hasLatitude ? Number(promotionForm.latitude) : null;
+    const longitude = hasLongitude ? Number(promotionForm.longitude) : null;
+    if (
+      (hasLatitude && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) ||
+      (hasLongitude && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))
+    ) {
+      setPromotionError("Coordinates are outside the allowed latitude/longitude ranges.");
+      return;
+    }
+    const reportedAt = new Date(promotionForm.reported_at);
+    if (Number.isNaN(reportedAt.getTime())) {
+      setPromotionError("Enter a valid event/report timestamp.");
+      return;
+    }
+
+    const payload = {
+      hazard_type: promotionForm.hazard_type,
+      description: promotionForm.description.trim(),
+      location: promotionForm.location.trim(),
+      reported_at: reportedAt.toISOString(),
+      people_affected: people,
+      help_needed: promotionForm.help_needed,
+      latitude,
+      longitude,
+    };
+    if (payload.description.length < 10 || payload.location.length < 2) {
+      setPromotionError("Description must be at least 10 characters and location at least 2 characters.");
+      return;
+    }
+
+    setWorkingAlertId(alert.id);
+    try {
+      const result = await promoteAlertToIncident(alert.id, payload);
+      setPromotingAlertId(null);
+      setPromotionForm(null);
+      await loadData({ silent: true });
+      await refreshAll();
+      toast({
+        type: "success",
+        title: `Incident ${incidentCode(result.incident.id)} created`,
+        message: "The reviewed external alert is linked to the new incident and now appears in the incident priority workflow.",
+      });
+    } catch (err) {
+      const message = describeError(err);
+      setPromotionError(message);
+      toast({ type: "error", title: "Could not create incident", message });
     } finally {
       setWorkingAlertId(null);
     }
@@ -453,6 +571,18 @@ export default function Alerts() {
                       <Icon name="history" size={14} />
                       <span>Assessment history</span>
                     </button>
+                    {alert.review_status === "reviewed" && !alert.linked_incident_id && (
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => startPromotion(alert)} disabled={promotingAlertId !== null}>
+                        <Icon name="plus" size={14} />
+                        <span>Create incident</span>
+                      </button>
+                    )}
+                    {alert.linked_incident_id && (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate(`#/incidents/${alert.linked_incident_id}`)}>
+                        <Icon name="externalLink" size={14} />
+                        <span>Open linked incident {incidentCode(alert.linked_incident_id)}</span>
+                      </button>
+                    )}
                     {alert.review_status === "new" && (
                       <>
                         <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleReview(alert, "reviewed")} disabled={busy}>
@@ -480,6 +610,92 @@ export default function Alerts() {
                         disabled={busy}
                       />
                     </div>
+                  )}
+
+                  {promotingAlertId === alert.id && promotionForm && (
+                    <form className="alert-promotion-form" onSubmit={(event) => handlePromotionSubmit(event, alert)}>
+                      <div className="alert-promotion-head">
+                        <div>
+                          <strong>Create an incident from this reviewed alert</strong>
+                          <p className="cell-sub">Confirm every incident field. Provider data does not supply affected-person counts or required help types.</p>
+                        </div>
+                        <button type="button" className="btn btn-secondary btn-xs" onClick={() => { setPromotingAlertId(null); setPromotionForm(null); setPromotionError(null); }} disabled={busy}>
+                          Cancel
+                        </button>
+                      </div>
+
+                      <div className="alert-promotion-grid">
+                        <div className="form-field">
+                          <label htmlFor={`promote-hazard-${alert.id}`}>Incident hazard type</label>
+                          <select id={`promote-hazard-${alert.id}`} value={promotionForm.hazard_type} onChange={(event) => updatePromotionField("hazard_type", event.target.value)} disabled={busy}>
+                            {["flood", "earthquake", "fire", "cyclone", "landslide", "building_collapse", "chemical_spill", "other"].map((value) => (
+                              <option key={value} value={value}>{labelize(value)}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="form-field">
+                          <label htmlFor={`promote-location-${alert.id}`}>Incident location</label>
+                          <input id={`promote-location-${alert.id}`} value={promotionForm.location} onChange={(event) => updatePromotionField("location", event.target.value)} minLength={2} maxLength={200} required disabled={busy} />
+                        </div>
+
+                        <div className="form-field">
+                          <label htmlFor={`promote-reported-${alert.id}`}>Reported/event time</label>
+                          <input id={`promote-reported-${alert.id}`} type="datetime-local" value={promotionForm.reported_at} onChange={(event) => updatePromotionField("reported_at", event.target.value)} required disabled={busy} />
+                        </div>
+
+                        <div className="form-field">
+                          <label htmlFor={`promote-people-${alert.id}`}>People affected (operator verified)</label>
+                          <input id={`promote-people-${alert.id}`} type="number" min="0" max="1000000" step="1" value={promotionForm.people_affected} onChange={(event) => updatePromotionField("people_affected", event.target.value)} placeholder="Enter verified estimate" required disabled={busy} />
+                        </div>
+
+                        <div className="form-field form-field-full">
+                          <label htmlFor={`promote-description-${alert.id}`}>Incident description</label>
+                          <textarea id={`promote-description-${alert.id}`} rows={3} minLength={10} maxLength={1000} value={promotionForm.description} onChange={(event) => updatePromotionField("description", event.target.value)} required disabled={busy} />
+                        </div>
+
+                        <fieldset className="form-field form-field-full alert-help-fieldset">
+                          <legend>Help required — select at least one</legend>
+                          <div className="alert-help-options">
+                            {["rescue", "medical", "evacuation", "shelter", "food", "water", "firefighting", "other"].map((value) => (
+                              <label key={value} className="alert-help-option">
+                                <input
+                                  type="checkbox"
+                                  checked={promotionForm.help_needed.includes(value)}
+                                  onChange={(event) => togglePromotionHelp(value, event.target.checked)}
+                                  disabled={busy}
+                                />
+                                <span>{labelize(value)}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+
+                        <div className="form-field">
+                          <label htmlFor={`promote-latitude-${alert.id}`}>Latitude (optional)</label>
+                          <input id={`promote-latitude-${alert.id}`} type="number" min="-90" max="90" step="any" value={promotionForm.latitude} onChange={(event) => updatePromotionField("latitude", event.target.value)} disabled={busy} />
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor={`promote-longitude-${alert.id}`}>Longitude (optional)</label>
+                          <input id={`promote-longitude-${alert.id}`} type="number" min="-180" max="180" step="any" value={promotionForm.longitude} onChange={(event) => updatePromotionField("longitude", event.target.value)} disabled={busy} />
+                        </div>
+                      </div>
+
+                      {promotionError && <div className="field-error alert-promotion-error">{promotionError}</div>}
+                      <div className="notice-box">
+                        <Icon name="shield" size={14} />
+                        <div>
+                          <strong>Human verification required</strong>
+                          <p>People affected and help-needed fields are operator inputs. Promotion creates an open incident with the existing prototype severity score; it does not approve a resource plan or dispatch anything.</p>
+                        </div>
+                      </div>
+                      <div className="page-hero-actions">
+                        <button type="submit" className="btn btn-primary" disabled={busy}>
+                          <Icon name="checkCircle" size={14} />
+                          <span>{busy ? "Creating incident..." : "Confirm & create incident"}</span>
+                        </button>
+                      </div>
+                    </form>
                   )}
 
                   {assessment && <AssessmentPanel assessment={assessment} />}
