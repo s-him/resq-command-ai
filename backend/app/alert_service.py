@@ -1,5 +1,6 @@
 """Application service for syncing and reviewing public disaster alerts."""
 
+import threading
 from datetime import datetime, timezone
 
 from app import alert_repository, alert_sources
@@ -32,7 +33,7 @@ SOURCE_CATALOG = {
 }
 
 
-def _utc_now() -> str:
+SYNC_LOCKS = {"gdacs": threading.Lock(), "usgs": threading.Lock()}\n\n\ndef _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -48,11 +49,15 @@ def sync_sources(sources: list[str]) -> dict:
         error_message = None
 
         try:
-            alerts = alert_sources.fetch_alerts(source)
-            fetched_count = len(alerts)
-            created_count, updated_count = alert_repository.upsert_alerts(
-                source, [alert.to_dict() for alert in alerts]
-            )
+            lock = SYNC_LOCKS.get(source)
+            if lock is None:
+                raise ValueError(f"Unsupported alert source: {source}")
+            with lock:
+                alerts = alert_sources.fetch_alerts(source)
+                fetched_count = len(alerts)
+                created_count, updated_count = alert_repository.upsert_alerts(
+                    source, [alert.to_dict() for alert in alerts]
+                )
             status = "success"
         except Exception as exc:
             status = "failed"
