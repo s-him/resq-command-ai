@@ -14,7 +14,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import alert_service, incident_repository
-from app.config import (\n    ALERT_AUTO_SYNC_ENABLED,\n    APP_DESCRIPTION,\n    APP_NAME,\n    APP_VERSION,\n    GDACS_SYNC_INTERVAL_SECONDS,\n    USGS_SYNC_INTERVAL_SECONDS,\n)
+from app.config import (
+    ALERT_AUTO_SYNC_ENABLED,
+    APP_DESCRIPTION,
+    APP_NAME,
+    APP_VERSION,
+    GDACS_SYNC_INTERVAL_SECONDS,
+    USGS_SYNC_INTERVAL_SECONDS,
+)
 from app.database import init_database
 from app.errors import validation_error_handler
 from app.routers import alerts, assessments, health, incidents, recommendations, resources, response_plans
