@@ -4,7 +4,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app import alert_promotion_service, alert_repository, alert_service, incident_repository
 from app.alert_schemas import (
-    AlertListResponse,\n    AlertPromotionResponse,
+    AlertListResponse,
+    AlertPromotionResponse,
     AlertReviewRequest,
     AlertReviewStatus,
     AlertSource,
