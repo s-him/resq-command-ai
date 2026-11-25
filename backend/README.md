@@ -556,3 +556,11 @@ A plan is created from a recommendation only after that recommendation has an `a
 - Rejected and completed plans do not hold reservations. A failed over-reservation approval returns HTTP 409 and leaves the plan pending.
 
 **Safety boundary:** this is a college-project dispatch simulation. It does not contact emergency services, send vehicles/teams, notify responders, or guarantee real-world resource availability. The operator approval is not backed by user authentication or role-based access control. A trained human operator must verify real conditions independently.
+
+---
+
+## Alert Intelligence frontend (Stage 5)
+
+The React application exposes the external alert workflow at `#/alerts`. The page reads `GET /api/alerts` and `GET /api/alerts/sources`, runs provider sync with `POST /api/alerts/sync`, records operator review through `POST /api/alerts/{id}/review`, and executes the specialist agents through `POST /api/alerts/{id}/assessments`.
+
+The page refreshes its local API view every 60 seconds. It does **not** call the provider feeds on that timer; new external data is fetched only when an operator explicitly synchronizes the feeds.
