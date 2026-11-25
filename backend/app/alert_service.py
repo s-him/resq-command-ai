@@ -33,7 +33,10 @@ SOURCE_CATALOG = {
 }
 
 
-SYNC_LOCKS = {"gdacs": threading.Lock(), "usgs": threading.Lock()}\n\n\ndef _utc_now() -> str:
+SYNC_LOCKS = {"gdacs": threading.Lock(), "usgs": threading.Lock()}
+
+
+def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
