@@ -11,7 +11,6 @@ on:
       - feature/alert-intelligence-dashboard
       - feature/reviewed-alert-to-incident
       - feature/automatic-alert-sync
-      - feature/automatic-alert-sync
       - feature/resource-inventory-management
   pull_request:
     branches:
@@ -22,6 +21,7 @@ on:
       - feature/dispatch-simulation
       - feature/alert-intelligence-dashboard
       - feature/reviewed-alert-to-incident
+      - feature/automatic-alert-sync
 
 permissions:
   contents: read
