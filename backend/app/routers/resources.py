@@ -80,10 +80,7 @@ def update_resource(resource_id: int, update: ResourceUpdate) -> Resource:
 @router.get("/{resource_id}/history", response_model=ResourceHistory)
 def get_resource_history(resource_id: int) -> dict:
     """Return the registration and inventory-change audit history for a resource."""
-    resource = next(
-        (item for item in resource_repository.list_resources() if item.id == resource_id),
-        None,
-    )
+    resource = resource_repository.get_resource_by_id(resource_id)
     if resource is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
