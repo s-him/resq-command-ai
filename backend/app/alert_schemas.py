@@ -78,6 +78,8 @@ class AlertSourceStatus(BaseModel):
     hazard_types: list[str]
     feed_url: str
     update_interval: str
+    automatic_sync_enabled: bool
+    configured_sync_interval_seconds: int | None = None
     last_sync: AlertSyncRunSummary | None = None
 
 
