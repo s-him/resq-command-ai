@@ -31,7 +31,7 @@ def create_active_simulation(client):
             "reported_at": (
                 datetime.now(timezone.utc) - timedelta(minutes=5)
             ).isoformat(),
-            "people_affected": 75,
+            "people_affected": 50,
             "help_needed": ["medical"],
             "latitude": 28.6140,
             "longitude": 77.2090,
