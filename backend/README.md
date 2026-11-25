@@ -145,7 +145,7 @@ Expected response:
 {
   "status": "ok",
   "app": "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "database": "connected",
   "mode": "academic-prototype"
 }
@@ -376,6 +376,9 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | `external_alerts` | Provider-keyed public alerts; unique `(source, source_event_id)`; coordinates and review-status constraints. |
 | `alert_sync_runs` | Per-provider sync history, counts, status, timestamps and safe error summary. |
 | `alert_assessments` | Immutable, foreign-key-linked snapshots of the five specialist-agent assessment outputs. |
+| `response_plans` | Human-gated plan state (`pending`, `simulated`, `rejected`, `completed`) linked to an incident and approved recommendation. |
+| `response_plan_items` | Snapshot of proposed resource assignments; reservation quantity is counted only while the parent plan is `simulated`. |
+| `response_plan_actions` | Append-only audit events for creation, simulation approval/rejection, and completion. |
 | `schema_migrations` | Tracks applied migration versions (`version` PK, `name`, `applied_at`). |
 
 ### How to back up the database before upgrading
@@ -527,3 +530,27 @@ The recommendation engine now ranks geocoded resources by Haversine distance whe
 **Distance limitation:** Haversine distance is a great-circle straight-line estimate. It is not road distance, driving time, an accessible route, or a hazard footprint. This stage does not estimate population exposure or determine whether a resource is deployable.
 
 Migration `006` adds optional `resources.latitude` / `resources.longitude` and the distance fields on `recommendation_items`. It uses additive column changes, preserving existing resource records and previously saved recommendations.
+
+---
+
+## Human-gated response plan simulation (Stage 4)
+
+A plan is created from a recommendation only after that recommendation has an `approved` operator decision. New plans start as `pending`. A separate operator decision is required to approve the plan into `simulated` state or reject it. A simulated plan can later be completed; completion releases its simulation-only reservation.
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | `/api/incidents/{incident_id}/response-plans` | Create pending plan from an approved recommendation |
+| GET | `/api/response-plans` | List all plans; supports `?status=pending` |
+| GET | `/api/response-plans/{plan_id}` | Get plan details and action history |
+| POST | `/api/response-plans/{plan_id}/decision` | Approve into simulation or reject with a note |
+| POST | `/api/response-plans/{plan_id}/complete` | Complete simulation and release reservation |
+
+### Reservation accounting
+
+- `resources.quantity_available` remains the physical quantity entered in the inventory register. The simulation workflow never changes it.
+- Active reservations are calculated from `response_plan_items` whose parent plan is `simulated`.
+- Resource API responses expose `simulation_reserved_quantity` and `simulation_remaining_quantity` separately.
+- New resource recommendations use simulation-remaining quantities, not the physical total, so concurrent simulated plans cannot be double-booked.
+- Rejected and completed plans do not hold reservations. A failed over-reservation approval returns HTTP 409 and leaves the plan pending.
+
+**Safety boundary:** this is a college-project dispatch simulation. It does not contact emergency services, send vehicles/teams, notify responders, or guarantee real-world resource availability. A trained human operator must verify real conditions independently.
