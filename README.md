@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching and a combined incident/resource map, versioned database migrations (`001`–`006`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`007`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -26,14 +26,17 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── alert_service.py           # Feed synchronization orchestration
 │   │   ├── alert_schemas.py           # External-alert API contracts
 │   │   ├── geo.py                     # Haversine straight-line distance helper
+│   │   ├── response_plan_schemas.py   # Human-gated simulation plan contracts
+│   │   ├── response_plan_repository.py # Simulation reservations and audit log
 │   │   ├── agents/                    # Evidence, hazard, recency, location and review agents
 │   │   ├── assessment_orchestrator.py # Runs agents and combines their findings
 │   │   ├── assessment_repository.py   # Persists immutable assessment snapshots
 │   │   ├── assessment_schemas.py      # Assessment API contracts
+│   │   ├── routers/response_plans.py   # Response simulation API routes
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001-006)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-007)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -45,7 +48,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/incidents, /api/resources, /api/recommendations
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 145 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 150 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -111,7 +114,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`006` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, and `schema_migrations`).
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`007` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, and `schema_migrations`).
 
 ---
 
@@ -255,3 +258,21 @@ Resources can now be registered with optional latitude/longitude. The dashboard 
 The nearby resource API is `GET /api/resources/nearby?latitude=28.6139&longitude=77.2090&radius_km=25`. It returns only available resources with positive stock, registered coordinates, and a calculated straight-line distance within the requested radius.
 
 Straight-line distance is not road distance or travel time. This stage does not model flood/cyclone/earthquake impact boundaries, estimate affected population, or claim that registered resources are verified or deployable.
+
+---
+
+## Human-gated response plan simulation (Stage 4)
+
+A response plan can be created only from a resource recommendation that has already been approved by an operator. Creating a plan leaves it pending. A second operator must explicitly approve the plan to move it to `simulated`, which records reservations in a separate simulation ledger. A plan can also be rejected. Completing a simulated plan releases its simulation-only reservations.
+
+**This is not a real dispatch system.** No emergency service is contacted, no team or vehicle is sent, and the physical `resources.quantity_available` value is never modified. Active simulated reservations reduce the `simulation_remaining_quantity` shown in inventory and used by subsequent recommendations, preventing overlapping simulations from overbooking the same registered stock.
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | `/api/incidents/{incident_id}/response-plans` | Create a pending plan from an approved recommendation |
+| GET | `/api/response-plans` | List plans (optional `?status=pending`) |
+| GET | `/api/response-plans/{plan_id}` | Inspect a plan and its audit history |
+| POST | `/api/response-plans/{plan_id}/decision` | Approve into simulation or reject |
+| POST | `/api/response-plans/{plan_id}/complete` | Complete a simulation and release reservations |
+
+The frontend exposes this workflow under **Dispatch Simulation**. Each plan records its resource assignments, operator decisions, notes and timestamps.
