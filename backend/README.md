@@ -368,7 +368,9 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | `recommendations` | `id` PK; `incident_id` FK → `incidents(id)`; `status IN ('pending', 'approved', 'rejected')`; JSON `unavailable_needs` & `insufficient_needs` (unmatched gaps); `decision_note`, `decided_at`. Indexed on `incident_id`. |
 | `recommendation_items` | `id` PK; `recommendation_id` FK → `recommendations(id)`; `resource_id` FK → `resources(id)`; `recommended_quantity > 0`; `available_quantity >= 0`; `for_help_needed` (JSON list); `explanation`; `UNIQUE (recommendation_id, resource_id)`. Indexed on `recommendation_id` and `resource_id`. |
 | `action_history` | `id` PK; `incident_id` FK → `incidents(id)`; `recommendation_id` FK → `recommendations(id)`; `decision IN ('approved', 'rejected')`; optional `note`, `created_at`. Indexed on `incident_id` and `recommendation_id`. |
-| `external_alerts` | Provider-keyed public alerts; unique `(source, source_event_id)`; coordinates and review-status constraints. |\n| `alert_sync_runs` | Per-provider sync history, counts, status, timestamps and safe error summary. |\n| `schema_migrations` | Tracks applied migration versions (`version` PK, `name`, `applied_at`). |
+| `external_alerts` | Provider-keyed public alerts; unique `(source, source_event_id)`; coordinates and review-status constraints. |
+| `alert_sync_runs` | Per-provider sync history, counts, status, timestamps and safe error summary. |
+| `schema_migrations` | Tracks applied migration versions (`version` PK, `name`, `applied_at`). |
 
 ### How to back up the database before upgrading
 
