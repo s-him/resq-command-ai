@@ -606,10 +606,78 @@ def _migration_003_normalize_recommendation_items(
         )
 
 
+
+def _migration_004_create_external_alert_tables(connection: sqlite3.Connection) -> None:
+    """Create non-destructive tables for imported alerts and provider sync history."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS external_alerts (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            source              TEXT NOT NULL CHECK (source IN ('gdacs', 'usgs')),
+            source_event_id     TEXT NOT NULL,
+            event_type          TEXT NOT NULL,
+            hazard_type         TEXT NOT NULL,
+            title               TEXT NOT NULL,
+            description         TEXT,
+            location            TEXT,
+            country             TEXT,
+            alert_level         TEXT,
+            alert_score         REAL,
+            severity_value      REAL,
+            severity_unit       TEXT,
+            severity_text       TEXT,
+            latitude            REAL CHECK (latitude IS NULL OR (latitude >= -90 AND latitude <= 90)),
+            longitude           REAL CHECK (longitude IS NULL OR (longitude >= -180 AND longitude <= 180)),
+            depth_km            REAL,
+            event_at            TEXT,
+            source_updated_at   TEXT,
+            source_url          TEXT,
+            raw_data            TEXT NOT NULL,
+            first_seen_at       TEXT NOT NULL,
+            last_seen_at        TEXT NOT NULL,
+            review_status       TEXT NOT NULL DEFAULT 'new'
+                                    CHECK (review_status IN ('new', 'reviewed', 'dismissed')),
+            reviewed_at         TEXT,
+            review_note         TEXT,
+            CHECK ((latitude IS NULL AND longitude IS NULL)
+                   OR (latitude IS NOT NULL AND longitude IS NOT NULL)),
+            UNIQUE (source, source_event_id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alert_sync_runs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            source          TEXT NOT NULL CHECK (source IN ('gdacs', 'usgs')),
+            status          TEXT NOT NULL CHECK (status IN ('success', 'failed')),
+            fetched_count   INTEGER NOT NULL CHECK (fetched_count >= 0),
+            created_count   INTEGER NOT NULL CHECK (created_count >= 0),
+            updated_count   INTEGER NOT NULL CHECK (updated_count >= 0),
+            error_message   TEXT,
+            started_at      TEXT NOT NULL,
+            finished_at     TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_alerts_event_at ON external_alerts (event_at)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_alerts_review_status ON external_alerts (review_status)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_alerts_hazard_type ON external_alerts (hazard_type)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_alert_sync_runs_source_id ON alert_sync_runs (source, id)"
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
-    (3, "003_normalize_recommendation_items", _migration_003_normalize_recommendation_items),
+    (3, "003_normalize_recommendation_items", _migration_003_normalize_recommendation_items),\n    (4, "004_create_external_alert_tables", _migration_004_create_external_alert_tables),
 ]
 
 
