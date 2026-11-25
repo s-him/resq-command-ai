@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`008`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`009`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -36,7 +36,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001-008)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-009)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -48,7 +48,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 157 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 163 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -114,7 +114,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`008` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`008` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history.
 
 ---
 
@@ -322,3 +322,13 @@ RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.s
 ```
 
 The intervals must be at least 30 seconds; invalid or smaller values fall back to defaults. Manual **Sync Public Feeds** remains available. Manual and scheduled syncs for the same provider are serialized so they cannot race one another.
+
+---
+
+## Resource readiness and inventory control (Stage 8)
+
+Resources can now be edited from the inventory page. Operators can update resource type, name, physical quantity, depot location, availability status, and optional coordinates. Each registration/update is recorded in `resource_change_history`, including before/after values, timestamp, and optional operator note.
+
+The API supports `PATCH /api/resources/{resource_id}` and `GET /api/resources/{resource_id}/history`. Inventory changes are transactional. Physical quantity cannot be reduced below active simulation reservations, and a resource cannot be marked unavailable while a simulated plan still reserves units. Complete the simulation to release the reservation first.
+
+The resource page displays physical stock separately from simulation-reserved and simulation-remaining quantities. This is still a prototype inventory register; it is not connected to a live hospital/agency inventory system.
