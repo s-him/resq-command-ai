@@ -48,7 +48,8 @@ app.add_middleware(
 app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 # Register routers (groups of endpoints).
-app.include_router(health.router)\napp.include_router(alerts.router)
+app.include_router(health.router)
+app.include_router(alerts.router)
 app.include_router(incidents.router)
 app.include_router(resources.router)
 app.include_router(recommendations.router)
@@ -61,7 +62,8 @@ def root() -> dict:
         "message": f"{APP_NAME} is running.",
         "docs": "/docs",
         "health": "/health",
-        "incidents": "/api/incidents",\n        "alerts": "/api/alerts",
+        "incidents": "/api/incidents",
+        "alerts": "/api/alerts",
         "priority": "/api/incidents/priority",
         "resources": "/api/resources",
     }
