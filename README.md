@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`009`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`010`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -48,7 +48,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 163 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 170 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -114,7 +114,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`009` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`010` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history.
 
 ---
 
@@ -332,3 +332,19 @@ Resources can now be edited from the inventory page. Operators can update resour
 The API supports `PATCH /api/resources/{resource_id}` and `GET /api/resources/{resource_id}/history`. Inventory changes are transactional. Physical quantity cannot be reduced below active simulation reservations, and a resource cannot be marked unavailable while a simulated plan still reserves units. Complete the simulation to release the reservation first.
 
 The resource page displays physical stock separately from simulation-reserved and simulation-remaining quantities. This is still a prototype inventory register; it is not connected to a live hospital/agency inventory system.
+
+---
+
+## Incident operations lifecycle (Stage 9)
+
+Incidents now support an explicit operator lifecycle: `open → resolved → closed`, with `resolved → open` available for reopening when new information arrives. Closed incidents are final in this prototype. Status changes and operator-entered field notes are stored chronologically in `incident_updates`.
+
+| Method | URL | Purpose |
+|---|---|---|
+| PATCH | `/api/incidents/{incident_id}/status` | Apply an allowed status transition and optional note |
+| POST | `/api/incidents/{incident_id}/updates` | Add an operator note to the incident timeline |
+| GET | `/api/incidents/{incident_id}/updates` | Read status changes and operational notes; includes active simulation count |
+
+An incident cannot be closed while any response plan remains `simulated`. Complete those simulation plans first; the server enforces this rule transactionally. Open incidents remain in the priority queue; resolved and closed incidents do not.
+
+Operator notes are prototype audit entries and do not prove that responders attended or conditions changed. There is no operator authentication or role-based access control yet.
