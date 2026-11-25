@@ -400,7 +400,7 @@ export default function Alerts() {
                   <div className="alert-card-actions">
                     {alert.source_url && (
                       <a className="btn btn-secondary btn-sm" href={alert.source_url} target="_blank" rel="noreferrer">
-                        <Icon name="externalLink" size={14} />
+                        <Icon name="arrowRight" size={14} />
                         <span>Open source report</span>
                       </a>
                     )}
