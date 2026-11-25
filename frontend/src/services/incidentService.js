@@ -42,3 +42,38 @@ export async function getIncidentHistory(incidentId) {
   ]);
 }
 
+
+
+
+/** PATCH /api/incidents/{id}/status -> updated Incident */
+export async function updateIncidentStatus(incidentId, status, note = "") {
+  return expectObject(
+    await request(`/api/incidents/${incidentId}/status`, {
+      method: "PATCH",
+      body: { status, note: note.trim() || null },
+    }),
+    "update incident status",
+    INCIDENT_KEYS
+  );
+}
+
+/** POST /api/incidents/{id}/updates -> IncidentUpdateEntry */
+export async function addIncidentUpdate(incidentId, note) {
+  return expectObject(
+    await request(`/api/incidents/${incidentId}/updates`, {
+      method: "POST",
+      body: { note },
+    }),
+    "add incident update",
+    ["id", "incident_id", "event_type", "note", "created_at"]
+  );
+}
+
+/** GET /api/incidents/{id}/updates -> IncidentUpdateList */
+export async function getIncidentUpdates(incidentId) {
+  return expectObject(
+    await request(`/api/incidents/${incidentId}/updates`),
+    "incident operational history",
+    ["incident_id", "count", "active_simulation_count", "updates"]
+  );
+}
