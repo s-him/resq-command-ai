@@ -231,3 +231,17 @@ def review_alert(alert_id: int, status: str, note: str | None) -> dict[str, Any]
         raise
     finally:
         connection.close()
+
+
+
+def get_alert_by_id(alert_id: int) -> dict[str, Any] | None:
+    """Return one external alert without its raw provider payload."""
+    connection = get_connection()
+    try:
+        row = connection.execute(
+            "SELECT * FROM external_alerts WHERE id = ?",
+            (alert_id,),
+        ).fetchone()
+        return _row_to_alert(row) if row is not None else None
+    finally:
+        connection.close()
