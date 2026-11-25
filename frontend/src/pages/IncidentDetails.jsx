@@ -375,6 +375,7 @@ export default function IncidentDetails({ incidentId }) {
                             <th>Recommended Resource</th>
                             <th>Location</th>
                             <th>Quantity (Suggested / Available)</th>
+                            <th>Distance (Straight-line)</th>
                             <th>Status</th>
                           </tr>
                         </thead>
@@ -403,6 +404,11 @@ export default function IncidentDetails({ incidentId }) {
                                   {formatNumber(item.recommended_quantity)} /{" "}
                                   {formatNumber(item.available_quantity)} units
                                 </td>
+                                <td data-label="Distance (Straight-line)" className="tabular">
+                                  {typeof item.distance_km === "number"
+                                    ? `${item.distance_km.toFixed(2)} km`
+                                    : "Not calculated"}
+                                </td>
                                 <td data-label="Status">
                                   <StatusBadge status={hasShortfall ? "limited" : "available"} />
                                 </td>
@@ -428,6 +434,7 @@ export default function IncidentDetails({ incidentId }) {
                               >
                                 0 available units
                               </td>
+                              <td data-label="Distance (Straight-line)" className="text-muted">—</td>
                               <td data-label="Status">
                                 <StatusBadge status="unavailable" />
                               </td>
