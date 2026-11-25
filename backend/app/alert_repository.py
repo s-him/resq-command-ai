@@ -245,3 +245,22 @@ def get_alert_by_id(alert_id: int) -> dict[str, Any] | None:
         return _row_to_alert(row) if row is not None else None
     finally:
         connection.close()
+
+
+
+def get_alert_linked_to_incident(incident_id: int) -> dict[str, Any] | None:
+    """Return the most recently linked normalized provider alert for an incident."""
+    connection = get_connection()
+    try:
+        row = connection.execute(
+            """
+            SELECT * FROM external_alerts
+            WHERE linked_incident_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (incident_id,),
+        ).fetchone()
+        return _row_to_alert(row) if row is not None else None
+    finally:
+        connection.close()

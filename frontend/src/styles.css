@@ -2840,3 +2840,87 @@ h4 {
     align-self: flex-start;
   }
 }
+
+
+/* Incident-level agent activity trace */
+.agent-runs-stack {
+  display: grid;
+  gap: 14px;
+}
+.agent-run-card {
+  border: 1px solid var(--border, #dbe3ee);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--surface-subtle, rgba(148, 163, 184, 0.04));
+}
+.agent-run-heading,
+.agent-result-heading,
+.agent-result-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.agent-run-heading {
+  justify-content: space-between;
+}
+.agent-run-summary {
+  margin: 12px 0;
+  font-weight: 600;
+}
+.agent-results-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.agent-result-item {
+  border-top: 1px solid var(--border, #dbe3ee);
+  padding-top: 12px;
+}
+.agent-result-heading {
+  justify-content: space-between;
+}
+.agent-step-number {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-muted, #eef2f7);
+  font-size: 12px;
+  font-weight: 700;
+}
+.agent-result-rationale {
+  margin: 8px 0;
+  color: var(--text-muted, #64748b);
+  line-height: 1.5;
+}
+.agent-result-details summary {
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+}
+.agent-result-details pre {
+  overflow: auto;
+  max-height: 300px;
+  margin: 8px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-muted, #eef2f7);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-run-disclaimer {
+  margin: 12px 0 0;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (max-width: 700px) {
+  .agent-run-card { padding: 12px; }
+  .agent-result-heading { align-items: flex-start; }
+}

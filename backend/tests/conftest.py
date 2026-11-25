@@ -16,6 +16,7 @@ from app.main import app
 def disable_background_alert_sync(monkeypatch):
     """Keep the test suite offline; feed sync endpoints are mocked in API tests."""
     monkeypatch.setattr(main_module, "ALERT_AUTO_SYNC_ENABLED", False)
+    monkeypatch.setenv("LLM_ENABLED", "false")
 
 
 @pytest.fixture

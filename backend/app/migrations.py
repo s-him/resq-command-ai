@@ -910,6 +910,29 @@ def _migration_010_create_incident_updates(
     )
 
 
+def _migration_011_create_incident_agent_runs(connection: sqlite3.Connection) -> None:
+    """Store immutable inputs, outputs, modes and timings for incident-agent runs."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_agent_runs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id     INTEGER NOT NULL,
+            inputs_summary  TEXT NOT NULL,
+            agents_json     TEXT NOT NULL,
+            summary         TEXT NOT NULL,
+            engine_version  TEXT NOT NULL,
+            duration_ms     INTEGER NOT NULL CHECK (duration_ms >= 0),
+            generated_at    TEXT NOT NULL,
+            FOREIGN KEY (incident_id) REFERENCES incidents (id) ON DELETE RESTRICT
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_incident_agent_runs_incident "
+        "ON incident_agent_runs (incident_id, id)"
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
@@ -921,6 +944,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (8, "008_link_reviewed_alerts_to_incidents", _migration_008_link_reviewed_alerts_to_incidents),
     (9, "009_create_resource_change_history", _migration_009_create_resource_change_history),
     (10, "010_create_incident_updates", _migration_010_create_incident_updates),
+    (11, "011_create_incident_agent_runs", _migration_011_create_incident_agent_runs),
 ]
 
 

@@ -41,7 +41,7 @@ frontend/
     └── pages/
         ├── Dashboard.jsx                # Operational Overview (stats, workflow, priority queue, Leaflet map)
         ├── Incidents.jsx                # Full incident list with search, filters, and sort options
-        ├── IncidentDetails.jsx          # Investigation workspace, severity meter, recommendations, decision centre, audit trail
+        ├── IncidentDetails.jsx          # Investigation workspace, agent activity, severity, recommendations, decisions, audit trail
         ├── Resources.jsx                # Category strip, resource cards, inventory table, Add Resource modal
         ├── Recommendations.jsx          # Global Operator Decision Centre across all incidents
         └── ActivityHistory.jsx          # Date-grouped chronological audit timeline
@@ -56,3 +56,10 @@ npm run dev
 ```
 
 Open **http://localhost:5173** in your browser (with the FastAPI backend running at `http://127.0.0.1:8000`).
+
+
+## Incident Agent Activity
+
+Open an incident and select **Run Agent Pipeline** to run the five advisory incident agents. The **Agent Activity** section shows each agent's selected mode (llm or rules), rationale, confidence indicator, execution time, and structured result. The API stores run snapshots under GET /api/incidents/{id}/agent-trace.
+
+LLM use is disabled by default and configured in the backend process environment. The frontend never receives or stores the provider API key. All agent outputs remain suggestions; the UI does not treat them as confirmation or dispatch authorization.

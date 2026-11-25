@@ -115,7 +115,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`010` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`011` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history.
 
 ---
 
@@ -349,3 +349,69 @@ Incidents now support an explicit operator lifecycle: `open → resolved → clo
 An incident cannot be closed while any response plan remains `simulated`. Complete those simulation plans first; the server enforces this rule transactionally. Open incidents remain in the priority queue; resolved and closed incidents do not.
 
 Operator notes are prototype audit entries and do not prove that responders attended or conditions changed. There is no operator authentication or role-based access control yet.
+
+
+---
+
+## Incident-level AI-assisted agent pipeline (Phase 1)
+
+A separate incident-level workflow now runs five named agents in order: **DetectionAgent**, **SeverityAgent**, **PrioritizationAgent**, **DispatchAgent**, and **CoordinatorAgent**. This does not replace the existing GDACS/USGS external-alert assessment endpoint; that original five-specialist feed assessment remains deterministic.
+
+- **DetectionAgent** reviews an existing manual or promoted incident and, when available, its linked normalized GDACS/USGS alert. It can draft a hazard classification, description, location, and people-at-risk estimate for an operator to verify. It never creates or edits an incident.
+- **SeverityAgent** reports the existing deterministic severity score and factor breakdown. An enabled LLM may add explanatory text, but cannot change the numeric score or level.
+- **PrioritizationAgent** uses the deterministic score → people affected → report time → ID ordering. An LLM may add wording but cannot reorder the queue.
+- **DispatchAgent** calls the existing nearest/available-resource matcher and reports its assignments and shortfalls. LLM text cannot change resource IDs or quantities.
+- **CoordinatorAgent** summarizes the validated outputs and states the next human review step.
+
+Each run stores input summary, agent output, mode (llm or rules), rationale, confidence field, per-agent duration, total duration, and generation time. The confidence field is a prototype display value, not a calibrated probability.
+
+### Incident agent API
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | /api/incidents/{incident_id}/agent-runs | Run all five agents and persist an immutable trace |
+| GET | /api/incidents/{incident_id}/agent-trace | Read the most recent trace snapshots |
+
+Open an incident in the UI and select **Run Agent Pipeline**. Its **Agent Activity** section displays each agent's mode, timing, rationale, and structured output.
+
+### Optional LLM configuration
+
+LLM use is **disabled by default**. The app works offline and uses deterministic rules when disabled. If enabled, it sends JSON-mode requests to an OpenAI-compatible /chat/completions endpoint using the existing httpx dependency; no additional SDK is required.
+
+Copy .env.example as a reference, then set the values in the environment used to launch FastAPI. The example file is not loaded automatically by the application.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| LLM_ENABLED | false | Explicit opt-in to LLM calls |
+| LLM_BASE_URL | https://api.openai.com/v1 | OpenAI-compatible API base URL |
+| LLM_API_KEY | empty | Optional provider key; never commit a real key |
+| LLM_MODEL | gpt-4o-mini | Provider model identifier |
+| LLM_TIMEOUT_SECONDS | 8 | Per-request timeout |
+
+Linux/macOS example:
+
+~~~bash
+export LLM_ENABLED=true
+export LLM_BASE_URL="https://api.openai.com/v1"
+export LLM_API_KEY="YOUR_KEY_IN_YOUR_SHELL_ONLY"
+export LLM_MODEL="gpt-4o-mini"
+export LLM_TIMEOUT_SECONDS=8
+cd backend
+uvicorn app.main:app --reload
+~~~
+
+Windows PowerShell example:
+
+~~~powershell
+$env:LLM_ENABLED = "true"
+$env:LLM_BASE_URL = "https://api.openai.com/v1"
+$env:LLM_API_KEY = "YOUR_KEY_IN_YOUR_SHELL_ONLY"
+$env:LLM_MODEL = "gpt-4o-mini"
+$env:LLM_TIMEOUT_SECONDS = "8"
+cd backend
+uvicorn app.main:app --reload
+~~~
+
+Every provider response must be JSON and pass its agent's Pydantic schema. A disabled provider, missing configuration, HTTP error, timeout, malformed JSON, or schema-validation failure triggers deterministic fallback. Do not put real API keys in source control, screenshots, logs, or issue reports.
+
+**Safety boundary:** LLM output is a suggestion only. It cannot create/modify incidents, change severity scores or priority order, reserve stock, approve a recommendation, create a response plan, or dispatch resources. Phase 1 remains advisory; automatic simulated dispatch is a separate later phase and must retain explicit safety controls.

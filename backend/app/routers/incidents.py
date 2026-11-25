@@ -12,6 +12,8 @@ GET  /api/incidents/{id}/history           -> list recommendations and operator 
 from fastapi import APIRouter, HTTPException, status
 
 from app import (
+    agent_orchestrator,
+    agent_trace_repository,
     incident_lifecycle_repository,
     incident_repository,
     prioritization,
@@ -19,6 +21,7 @@ from app import (
     recommendations,
     resource_repository,
 )
+from app.agent_trace_schemas import AgentTraceList, AgentTraceRun
 from app.schemas import (
     Incident,
     IncidentCreate,
@@ -110,6 +113,39 @@ def generate_incident_recommendation(incident_id: int) -> Recommendation:
         insufficient_needs=insufficient_needs,
         summary=summary,
     )
+
+
+@router.post(
+    "/{incident_id}/agent-runs",
+    response_model=AgentTraceRun,
+    status_code=status.HTTP_201_CREATED,
+)
+def run_incident_agent_pipeline(incident_id: int) -> dict:
+    """Run five advisory agents and persist their trace; this does not dispatch."""
+    try:
+        return agent_orchestrator.run_incident_pipeline(incident_id)
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/{incident_id}/agent-trace", response_model=AgentTraceList)
+def get_incident_agent_trace(incident_id: int) -> dict:
+    """Return recent persisted agent runs for one incident."""
+    incident = incident_repository.get_incident_by_id(incident_id)
+    if incident is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident {incident_id} not found.",
+        )
+    traces = agent_trace_repository.list_agent_traces(incident_id)
+    return {
+        "incident_id": incident_id,
+        "count": len(traces),
+        "traces": traces,
+    }
 
 
 @router.get("/{incident_id}/history", response_model=IncidentHistory)

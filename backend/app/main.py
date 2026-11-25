@@ -140,5 +140,6 @@ def root() -> dict:
         "priority": "/api/incidents/priority",
         "resources": "/api/resources",
         "response_plans": "/api/response-plans",
+        "agent_trace": "/api/incidents/{incident_id}/agent-trace",
     }
 

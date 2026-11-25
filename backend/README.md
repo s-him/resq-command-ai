@@ -644,3 +644,50 @@ Allowed lifecycle transitions are `open → resolved`, `resolved → open` (reop
 An incident cannot be closed while it has one or more response plans in `simulated` state. Complete those simulation plans first. This check and status update run in one SQLite `BEGIN IMMEDIATE` transaction.
 
 Status changes and operator notes are stored in `incident_updates`. Notes on closed incidents are rejected. These are operator-entered prototype records; they do not independently verify field conditions or responder attendance. The application does not yet authenticate operator identities.
+
+
+---
+
+## Incident-level AI-assisted agents (Phase 1)
+
+The external-alert assessment described above is still deterministic. Phase 1 adds a separate incident-level pipeline with five named agents:
+
+1. **DetectionAgent** — reviews the existing incident and any linked normalized GDACS/USGS alert; produces a draft classification and incident summary for human verification.
+2. **SeverityAgent** — exposes the existing deterministic severity score and factor breakdown; an LLM can add explanation only.
+3. **PrioritizationAgent** — applies the existing deterministic severity → people affected → report time → ID order; an LLM cannot change ranks.
+4. **DispatchAgent** — calls the existing nearest/available stock matcher and records proposals and shortfalls; an LLM cannot modify allocation IDs or quantities.
+5. **CoordinatorAgent** — summarizes prior agent results and states the next operator review step.
+
+The agents return AgentResult objects with name, mode (llm or rules), structured output, rationale, confidence field, and duration. The confidence field is an uncalibrated prototype indicator, not a probability.
+
+### API
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | /api/incidents/{incident_id}/agent-runs | Run and persist the five-agent pipeline |
+| GET | /api/incidents/{incident_id}/agent-trace | Read recent immutable trace snapshots |
+
+Each trace stores a privacy-minimized input summary, all agent outputs and modes, the coordinator summary, engine version, timing and creation timestamp. Migration 011 creates incident_agent_runs and its incident lookup index.
+
+### Optional OpenAI-compatible LLM
+
+The LLM provider is off unless LLM_ENABLED=true. No new dependency was added: the client uses the existing httpx package and calls POST {LLM_BASE_URL}/chat/completions. It requests JSON mode and validates the response against a strict Pydantic schema. All exceptions, timeouts, malformed JSON, and validation failures fall back to deterministic rules.
+
+| Environment variable | Default |
+|---|---|
+| LLM_ENABLED | false |
+| LLM_BASE_URL | https://api.openai.com/v1 |
+| LLM_API_KEY | empty |
+| LLM_MODEL | gpt-4o-mini |
+| LLM_TIMEOUT_SECONDS | 8 |
+
+The repository root contains .env.example as a reference only; FastAPI does not load it automatically. Export the variables in the server process environment. Never commit API keys. With LLM disabled or unavailable, the backend runs fully offline.
+
+### Run one incident through the agents
+
+~~~bash
+curl -X POST http://127.0.0.1:8000/api/incidents/1/agent-runs
+curl http://127.0.0.1:8000/api/incidents/1/agent-trace
+~~~
+
+The Incident Details page exposes this as **Run Agent Pipeline** and shows an **Agent Activity** timeline. The run is analysis-only: it does not create or modify incidents, save a resource recommendation, approve a plan, modify physical stock, or dispatch a team. Existing operator gates remain intact.

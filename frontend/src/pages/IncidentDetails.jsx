@@ -10,7 +10,15 @@ import { useData } from "../context/DataContext";
 import { useToast } from "../context/ToastContext";
 import { navigate } from "../hooks/useHashRoute";
 import { describeError } from "../services/apiClient";
-import { addIncidentUpdate, getIncident, getIncidentHistory, getIncidentUpdates, updateIncidentStatus } from "../services/incidentService";
+import {
+  addIncidentUpdate,
+  getIncident,
+  getIncidentAgentTrace,
+  getIncidentHistory,
+  getIncidentUpdates,
+  runIncidentAgentPipeline,
+  updateIncidentStatus,
+} from "../services/incidentService";
 import {
   generateRecommendation,
   submitDecision,
@@ -37,6 +45,8 @@ export default function IncidentDetails({ incidentId }) {
   const [history, setHistory] = useState(null);
   const [incidentUpdates, setIncidentUpdates] = useState([]);
   const [activeSimulationCount, setActiveSimulationCount] = useState(0);
+  const [agentTraces, setAgentTraces] = useState([]);
+  const [agentRunning, setAgentRunning] = useState(false);
   const [statusNote, setStatusNote] = useState("");
   const [operatorNote, setOperatorNote] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -53,15 +63,17 @@ export default function IncidentDetails({ incidentId }) {
     setLoading(true);
     setError(null);
     try {
-      const [incData, histData, updateData] = await Promise.all([
+      const [incData, histData, updateData, agentTraceData] = await Promise.all([
         getIncident(incidentId),
         getIncidentHistory(incidentId),
         getIncidentUpdates(incidentId),
+        getIncidentAgentTrace(incidentId),
       ]);
       setIncident(incData);
       setHistory(histData);
       setIncidentUpdates(updateData.updates);
       setActiveSimulationCount(updateData.active_simulation_count);
+      setAgentTraces(agentTraceData.traces);
     } catch (err) {
       setError(err);
     } finally {
@@ -175,6 +187,29 @@ export default function IncidentDetails({ incidentId }) {
     }
   }
 
+  async function handleRunAgentPipeline() {
+    if (!incident || agentRunning) return;
+    setAgentRunning(true);
+    try {
+      const result = await runIncidentAgentPipeline(incident.id);
+      const trace = await getIncidentAgentTrace(incident.id);
+      setAgentTraces(trace.traces);
+      toast({
+        type: "success",
+        title: "Agent review completed",
+        message: `Five agents completed in ${result.duration_ms} ms. No incident or inventory state was changed.`,
+      });
+    } catch (err) {
+      toast({
+        type: "error",
+        title: "Agent review could not be completed",
+        message: describeError(err),
+      });
+    } finally {
+      setAgentRunning(false);
+    }
+  }
+
   if (loading && !incident) {
     return (
       <div className="page-stack">
@@ -258,6 +293,15 @@ export default function IncidentDetails({ incidentId }) {
           >
             <Icon name="refresh" size={15} />
             <span>Refresh</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleRunAgentPipeline}
+            disabled={agentRunning}
+          >
+            <Icon name="cpu" size={15} />
+            <span>{agentRunning ? "Running agents..." : "Run Agent Pipeline"}</span>
           </button>
           <button
             type="button"
@@ -437,6 +481,77 @@ export default function IncidentDetails({ incidentId }) {
 
       {/* Severity Intelligence Panel */}
       <SeverityPanel severity={incident.severity} />
+
+      <section className="surface-card agent-activity-panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="section-title">Agent Activity</h2>
+            <p className="section-subtitle">
+              Five advisory agents review this existing incident. LLM suggestions are optional;
+              deterministic severity, priority and stock matching remain authoritative.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleRunAgentPipeline}
+            disabled={agentRunning}
+          >
+            <Icon name="cpu" size={15} />
+            <span>{agentRunning ? "Running..." : "Run agents"}</span>
+          </button>
+        </div>
+
+        <div className="review-banner">
+          <Icon name="shield" size={15} />
+          <span>Agent runs are saved as immutable traces. They do not create incidents, approve recommendations, change inventory, or dispatch teams.</span>
+        </div>
+
+        {agentTraces.length === 0 ? (
+          <EmptyState
+            icon="cpu"
+            title="No agent runs recorded"
+            description="Run the pipeline to see detection, severity, prioritization, dispatch-planning, and coordinator results for this incident."
+            actionLabel="Run Agent Pipeline"
+            onAction={handleRunAgentPipeline}
+          />
+        ) : (
+          <div className="agent-runs-stack">
+            {agentTraces.map((run) => (
+              <article className="agent-run-card" key={run.id}>
+                <div className="agent-run-heading">
+                  <div>
+                    <CodeBadge>RUN-{String(run.id).padStart(4, "0")}</CodeBadge>
+                    <span className="text-muted tabular">{formatDateTime(run.generated_at)}</span>
+                  </div>
+                  <span className="text-muted tabular">{run.duration_ms} ms · {run.engine_version}</span>
+                </div>
+                <p className="agent-run-summary">{run.summary}</p>
+                <ol className="agent-results-list">
+                  {run.agents.map((agent, index) => (
+                    <li className="agent-result-item" key={agent.name}>
+                      <div className="agent-result-heading">
+                        <div className="agent-result-title">
+                          <span className="agent-step-number">{index + 1}</span>
+                          <strong>{agent.name}</strong>
+                          <StatusBadge status={agent.mode} />
+                        </div>
+                        <span className="text-muted tabular">{agent.duration_ms} ms · {Math.round(agent.confidence * 100)}% confidence</span>
+                      </div>
+                      <p className="agent-result-rationale">{agent.rationale}</p>
+                      <details className="agent-result-details">
+                        <summary>View structured output</summary>
+                        <pre>{JSON.stringify(agent.output, null, 2)}</pre>
+                      </details>
+                    </li>
+                  ))}
+                </ol>
+                <p className="agent-run-disclaimer">{run.disclaimer}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Resource Recommendation Engine & Operator Decision Centre */}
       <section className="surface-card">

@@ -77,3 +77,22 @@ export async function getIncidentUpdates(incidentId) {
     ["incident_id", "count", "active_simulation_count", "updates"]
   );
 }
+
+
+/** POST /api/incidents/{id}/agent-runs -> one persisted advisory agent trace. */
+export async function runIncidentAgentPipeline(incidentId) {
+  return expectObject(
+    await request(`/api/incidents/${incidentId}/agent-runs`, { method: "POST" }),
+    "incident agent run",
+    ["id", "incident_id", "inputs_summary", "agents", "summary", "engine_version", "duration_ms", "generated_at", "disclaimer"]
+  );
+}
+
+/** GET /api/incidents/{id}/agent-trace -> recent immutable agent run snapshots. */
+export async function getIncidentAgentTrace(incidentId) {
+  return expectObject(
+    await request(`/api/incidents/${incidentId}/agent-trace`),
+    "incident agent trace",
+    ["incident_id", "count", "traces", "disclaimer"]
+  );
+}
