@@ -36,6 +36,7 @@ backend/
 │   ├── prioritization.py   # Ranks open incidents by score, people affected, reported time
 │   ├── recommendations.py  # Rule-based resource matching (prototype suggestions)
 │   ├── incident_repository.py  # All SQL for incidents (save, list, fill missing scores)
+│   ├── incident_lifecycle_repository.py # Status transitions and operator timeline
 │   ├── resource_repository.py  # All SQL for resources (save, list, available)
 │   ├── recommendation_repository.py  # All SQL for recommendations (save, list)
 │   ├── errors.py           # Turns validation errors into a short {field, message} list
@@ -43,7 +44,7 @@ backend/
 │       ├── __init__.py
 │       ├── health.py       # GET /health – is the server and database OK?
 │       ├── alerts.py       # /api/alerts – sync, list, source status and review
-│       ├── incidents.py    # POST/GET /api/incidents, /priority, /{id}/recommendation, /{id}/history
+│       ├── incidents.py    # Incident CRUD, priority, recommendations, lifecycle status and operational updates
 │       ├── resources.py    # POST/GET /api/resources
 │       └── recommendations.py  # GET /api/recommendations/{id}, POST /{id}/decision
 ├── data/                   # The SQLite file (relief.db) is created here automatically
