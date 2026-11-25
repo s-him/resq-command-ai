@@ -145,7 +145,7 @@ Expected response:
 {
   "status": "ok",
   "app": "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "database": "connected",
   "mode": "academic-prototype"
 }
@@ -369,9 +369,9 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 | Table | Key constraints & relationships |
 |---|---|
 | `incidents` | `id` PK; `people_affected >= 0`; `status IN ('open', 'resolved', 'closed')`; paired optional `latitude` (`-90..90`) and `longitude` (`-180..180`); `severity_*` columns. Indexed on `status`. |
-| `resources` | `id` PK; `quantity_available >= 0`; `availability_status IN ('available', 'limited', 'unavailable')`. |
+| `resources` | `id` PK; `quantity_available >= 0`; `availability_status IN ('available', 'limited', 'unavailable')`; optional paired latitude/longitude coordinates added by migration 006. |
 | `recommendations` | `id` PK; `incident_id` FK → `incidents(id)`; `status IN ('pending', 'approved', 'rejected')`; JSON `unavailable_needs` & `insufficient_needs` (unmatched gaps); `decision_note`, `decided_at`. Indexed on `incident_id`. |
-| `recommendation_items` | `id` PK; `recommendation_id` FK → `recommendations(id)`; `resource_id` FK → `resources(id)`; `recommended_quantity > 0`; `available_quantity >= 0`; `for_help_needed` (JSON list); `explanation`; `UNIQUE (recommendation_id, resource_id)`. Indexed on `recommendation_id` and `resource_id`. |
+| `recommendation_items` | `id` PK; `recommendation_id` FK → `recommendations(id)`; `resource_id` FK → `resources(id)`; `recommended_quantity > 0`; `available_quantity >= 0`; `for_help_needed` (JSON list); `explanation`; optional `distance_km` and `distance_basis`; `UNIQUE (recommendation_id, resource_id)`. Indexed on `recommendation_id` and `resource_id`. |
 | `action_history` | `id` PK; `incident_id` FK → `incidents(id)`; `recommendation_id` FK → `recommendations(id)`; `decision IN ('approved', 'rejected')`; optional `note`, `created_at`. Indexed on `incident_id` and `recommendation_id`. |
 | `external_alerts` | Provider-keyed public alerts; unique `(source, source_event_id)`; coordinates and review-status constraints. |
 | `alert_sync_runs` | Per-provider sync history, counts, status, timestamps and safe error summary. |
