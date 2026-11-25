@@ -12,7 +12,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 APP_NAME = "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine"
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.8.0"
 APP_DESCRIPTION = (
     "Academic prototype for a college mini-project. "
     "Uses manually entered reports and read-only public alerts from GDACS and USGS. "
