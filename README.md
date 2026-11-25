@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`007`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`007`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -56,7 +56,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── services/                # Central fetch() client and domain API service modules
 │   │   ├── context/                 # Shared backend state (DataContext) and operation toasts
 │   │   ├── components/              # Layout shell, common UI primitives, map, and forms
-│   │   └── pages/                   # Dashboard, Incidents, IncidentDetails, Resources, Recommendations, Dispatch Simulation, ActivityHistory
+│   │   └── pages/                   # Dashboard, Alerts, Incidents, IncidentDetails, Resources, Recommendations, Dispatch Simulation, ActivityHistory
 │   ├── .env.example                 # Safe local environment template
 │   ├── package.json                 # Frontend packages and scripts
 │   ├── package-lock.json            # Lockfile for reproducible npm installs
@@ -275,3 +275,13 @@ A response plan can be created only from a resource recommendation that has alre
 | POST | `/api/response-plans/{plan_id}/complete` | Complete a simulation and release reservations |
 
 The frontend exposes this workflow under **Dispatch Simulation**. Each plan records its resource assignments, operator decisions, notes and timestamps.
+
+---
+
+## Alert Intelligence dashboard (Stage 5)
+
+The React application now includes an Alert Intelligence page at `#/alerts`. Operators can synchronize the configured GDACS and USGS feeds, filter imported alerts by provider/hazard/provider alert level/review state, open the original source report, record a reviewed/dismissed decision, and run the five-specialist assessment pipeline on an individual alert.
+
+The alert list and provider sync status refresh from the local API every 60 seconds. This is a UI refresh only; it does not fetch new provider data. Provider synchronization remains an explicit operator action through the **Sync Public Feeds** button.
+
+All alert records remain external, unverified reports until an operator independently verifies them. The assessment panel shows per-agent findings and limitations; it does not create an incident or authorize a response.
