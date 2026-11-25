@@ -751,6 +751,78 @@ def _migration_006_add_resource_coordinates_and_match_distances(
         )
 
 
+
+def _migration_007_create_response_plan_simulation_tables(
+    connection: sqlite3.Connection,
+) -> None:
+    """Create human-gated response plans, simulation reservations and audit records."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_plans (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id         INTEGER NOT NULL,
+            recommendation_id   INTEGER NOT NULL UNIQUE,
+            status              TEXT NOT NULL DEFAULT 'pending'
+                                    CHECK (status IN ('pending', 'simulated', 'rejected', 'completed')),
+            summary             TEXT NOT NULL,
+            decision_note       TEXT,
+            created_at          TEXT NOT NULL,
+            decided_at          TEXT,
+            completed_at        TEXT,
+            FOREIGN KEY (incident_id) REFERENCES incidents (id),
+            FOREIGN KEY (recommendation_id) REFERENCES recommendations (id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_plan_items (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            response_plan_id    INTEGER NOT NULL,
+            resource_id         INTEGER NOT NULL,
+            resource_name       TEXT NOT NULL,
+            resource_type       TEXT NOT NULL,
+            resource_location   TEXT NOT NULL,
+            assigned_quantity   INTEGER NOT NULL CHECK (assigned_quantity > 0),
+            distance_km         REAL CHECK (distance_km IS NULL OR distance_km >= 0),
+            distance_basis      TEXT NOT NULL DEFAULT 'not_available'
+                                    CHECK (distance_basis IN ('haversine_straight_line', 'not_available')),
+            FOREIGN KEY (response_plan_id) REFERENCES response_plans (id),
+            FOREIGN KEY (resource_id) REFERENCES resources (id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_plan_actions (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            response_plan_id    INTEGER NOT NULL,
+            action              TEXT NOT NULL
+                                    CHECK (action IN ('created', 'simulated', 'rejected', 'completed')),
+            note                TEXT,
+            created_at          TEXT NOT NULL,
+            FOREIGN KEY (response_plan_id) REFERENCES response_plans (id)
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_response_plans_incident_id "
+        "ON response_plans (incident_id, id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_response_plans_status "
+        "ON response_plans (status, id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_response_plan_items_resource "
+        "ON response_plan_items (resource_id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_response_plan_actions_plan "
+        "ON response_plan_actions (response_plan_id, id)"
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
@@ -758,6 +830,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (4, "004_create_external_alert_tables", _migration_004_create_external_alert_tables),
     (5, "005_create_alert_assessments", _migration_005_create_alert_assessments),
     (6, "006_add_resource_coordinates_and_match_distances", _migration_006_add_resource_coordinates_and_match_distances),
+    (7, "007_create_response_plan_simulation_tables", _migration_007_create_response_plan_simulation_tables),
 ]
 
 
