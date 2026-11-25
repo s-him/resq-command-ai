@@ -24,6 +24,10 @@ backend/
 │   ├── alert_repository.py # External alert persistence, deduplication and review
 │   ├── alert_service.py    # Feed synchronization orchestration
 │   ├── alert_schemas.py    # External alert API contracts
+│   ├── agents/             # Evidence, hazard, recency, location and review specialists
+│   ├── assessment_orchestrator.py # Runs the specialists and combines findings
+│   ├── assessment_repository.py   # Stores immutable assessment snapshots
+│   ├── assessment_schemas.py      # Assessment response contracts
 │   ├── schemas.py          # Pydantic models for incidents and resources
 │   ├── severity.py         # Rule-based severity scoring (prototype estimate)
 │   ├── prioritization.py   # Ranks open incidents by score, people affected, reported time
@@ -461,3 +465,43 @@ Migration 004 creates external_alerts and alert_sync_runs without rebuilding
 or deleting any existing incident, resource, or recommendation data.
 
 ---
+
+---
+
+## Multi-agent assessment (Stage 2)
+
+Five specialist agents analyze an imported alert:
+
+- **Evidence quality:** measures field completeness only. It is not a truth score or probability.
+- **Hazard signal:** retains provider-native signals. GDACS Red/Orange/Green is shown as reported; USGS magnitude is not converted into a universal damage grade.
+- **Event recency:** calculates the event age and flags implausible future timestamps.
+- **Location evidence:** records coordinates or text-only location. Population exposure stays unknown until a real population/exposure dataset is connected.
+- **Review coordinator:** creates an explainable human-review priority and records its reasons.
+
+The orchestrator is deterministic and rule-based in this stage. No LLM or trained ML model is called. Every result requires human review and does not create incidents or dispatch resources.
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | `/api/alerts/{alert_id}/assessments` | Run all five agents and save a snapshot |
+| GET | `/api/alerts/{alert_id}/assessments` | List previous snapshots for an alert |
+| GET | `/api/alerts/assessments/{assessment_id}` | Retrieve one saved assessment |
+
+Run an assessment:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/alerts/1/assessments
+```
+
+List its history:
+
+```bash
+curl http://127.0.0.1:8000/api/alerts/1/assessments
+```
+
+Retrieve a specific assessment:
+
+```bash
+curl http://127.0.0.1:8000/api/alerts/assessments/1
+```
+
+Migration `005` adds `alert_assessments`, linked to `external_alerts` by a foreign key. Assessment records are immutable snapshots; re-running the agents creates a new history row instead of silently overwriting the previous result.
