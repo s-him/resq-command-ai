@@ -3,7 +3,7 @@
 > **ACADEMIC PROTOTYPE | SIMULATED / REPORTED DATA ONLY | HUMAN REVIEW REQUIRED | NOT FOR REAL EMERGENCY DISPATCH**
 >
 > - This is a **college mini-project demonstration**, not a real emergency response service.
-> - It uses **sample or manually entered data only** and does **not** connect to emergency services, external disaster feeds, or live dispatch systems.
+> - It imports read-only public alerts from **GDACS** (multi-hazard) and **USGS** (earthquakes). It does **not** connect to emergency services or live dispatch systems.
 > - It does **not** predict disasters.
 > - Severity scores and resource matches are **unvalidated rule-based prototype estimates**.
 > - A **human operator** must review and approve or reject every recommendation. Approving a recommendation records an audit decision in SQLite and **never dispatches or deducts actual resources**.
@@ -14,13 +14,17 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, versioned database migrations (`001`–`003`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, versioned database migrations (`001`–`004`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
 .
 ├── backend/
 │   ├── app/
+│   │   ├── alert_sources.py           # GDACS + USGS feed parsing and normalization
+│   │   ├── alert_repository.py        # External-alert persistence, deduplication and review
+│   │   ├── alert_service.py           # Feed synchronization orchestration
+│   │   ├── alert_schemas.py           # External-alert API contracts
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
