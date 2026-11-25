@@ -347,7 +347,7 @@ export default function Resources() {
 
                   <div className="resource-card-qty-row">
                     <div>
-                      <span className="resource-qty-label">Available Quantity</span>
+                      <span className="resource-qty-label">Physical Quantity</span>
                       <div className="resource-qty-val tabular">
                         {formatNumber(res.quantity_available)}
                       </div>
