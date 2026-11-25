@@ -12,12 +12,12 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 APP_NAME = "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 APP_DESCRIPTION = (
     "Academic prototype for a college mini-project. "
     "Uses sample/manual data only. It is NOT a real emergency system, does not "
     "connect to emergency services, and does not predict disasters. "
-    "A human operator must approve or reject every recommendation."
+    "Read-only public alert feeds are imported for human review. A human operator must approve or reject every recommendation."
 )
 
 # SQLite database file (project-relative by default; overridable via RELIEF_DATABASE_PATH).
