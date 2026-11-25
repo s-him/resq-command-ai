@@ -43,6 +43,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── recommendations.py       # Rule-based resource matching & shortfall reporting
 │   │   ├── incident_repository.py   # Parameterized SQLite queries for incidents
 │   │   ├── incident_lifecycle_repository.py # Status transitions and operator timeline
+│   │   ├── incident_lifecycle_repository.py # Status transitions and operator timeline
 │   │   ├── resource_repository.py   # Parameterized SQLite queries for resources
 │   │   ├── recommendation_repository.py # Transactional queries for recommendations & action_history
 │   │   ├── errors.py                # Structured 422 validation error formatter
@@ -115,7 +116,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`010` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 010 adds timestamped incident status and operator-note history.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`010` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history.
 
 ---
 
