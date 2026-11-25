@@ -871,6 +871,45 @@ def _migration_009_create_resource_change_history(
     )
 
 
+
+def _migration_010_create_incident_updates(
+    connection: sqlite3.Connection,
+) -> None:
+    """Create immutable incident status and operator-note timeline events."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_updates (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id     INTEGER NOT NULL,
+            event_type      TEXT NOT NULL
+                                CHECK (event_type IN ('status_changed', 'operator_note')),
+            previous_status TEXT
+                                CHECK (previous_status IS NULL OR previous_status IN ('open', 'resolved', 'closed')),
+            new_status      TEXT
+                                CHECK (new_status IS NULL OR new_status IN ('open', 'resolved', 'closed')),
+            note            TEXT,
+            created_at      TEXT NOT NULL,
+            FOREIGN KEY (incident_id) REFERENCES incidents (id) ON DELETE RESTRICT,
+            CHECK (
+                (event_type = 'status_changed'
+                    AND previous_status IS NOT NULL
+                    AND new_status IS NOT NULL
+                    AND previous_status != new_status)
+                OR
+                (event_type = 'operator_note'
+                    AND previous_status IS NULL
+                    AND new_status IS NULL
+                    AND note IS NOT NULL)
+            )
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_incident_updates_incident "
+        "ON incident_updates (incident_id, id)"
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
@@ -881,6 +920,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (7, "007_create_response_plan_simulation_tables", _migration_007_create_response_plan_simulation_tables),
     (8, "008_link_reviewed_alerts_to_incidents", _migration_008_link_reviewed_alerts_to_incidents),
     (9, "009_create_resource_change_history", _migration_009_create_resource_change_history),
+    (10, "010_create_incident_updates", _migration_010_create_incident_updates),
 ]
 
 
