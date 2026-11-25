@@ -28,7 +28,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001, 002, 003)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-004)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -106,7 +106,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`003` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, and `schema_migrations`).
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`004` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, and `schema_migrations`).
 
 ---
 
