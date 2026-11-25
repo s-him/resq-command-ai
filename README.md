@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`007`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`008`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -28,6 +28,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── geo.py                     # Haversine straight-line distance helper
 │   │   ├── response_plan_schemas.py   # Human-gated simulation plan contracts
 │   │   ├── response_plan_repository.py # Simulation reservations and audit log
+│   │   ├── alert_promotion_service.py  # Atomic reviewed-alert to incident promotion
 │   │   ├── agents/                    # Evidence, hazard, recency, location and review agents
 │   │   ├── assessment_orchestrator.py # Runs agents and combines their findings
 │   │   ├── assessment_repository.py   # Persists immutable assessment snapshots
@@ -35,7 +36,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001-007)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-008)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -47,7 +48,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 150 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 156 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -113,7 +114,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`007` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, and `schema_migrations`).
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`008` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it.
 
 ---
 
@@ -285,3 +286,19 @@ The React application now includes an Alert Intelligence page at `#/alerts`. Ope
 The alert list and provider sync status refresh from the local API every 60 seconds. This is a UI refresh only; it does not fetch new provider data. Provider synchronization remains an explicit operator action through the **Sync Public Feeds** button.
 
 All alert records remain external, unverified reports until an operator independently verifies them. The assessment panel shows per-agent findings and limitations; it does not create an incident or authorize a response.
+
+---
+
+## Promote a reviewed alert into an incident (Stage 6)
+
+An external alert can be promoted only after its review state is `reviewed`. The operator must supply or confirm the incident hazard type, description, location, event/report time, affected-person estimate, and at least one help type. Coordinates are copied only when the provider supplied them; they remain optional.
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/alerts/1/promote \
+  -H 'Content-Type: application/json' \
+  -d '{"hazard_type":"flood","description":"Operator-verified flooding in homes near Example District.","location":"Example District","reported_at":"2026-11-25T10:00:00Z","people_affected":75,"help_needed":["evacuation","medical"],"latitude":26.9,"longitude":75.8}'
+```
+
+The operation is atomic: it creates one open incident using the existing prototype severity calculation and stores `linked_incident_id` / `linked_at` on the source alert. A duplicate promotion returns HTTP 409. The new incident immediately appears in `/api/incidents` and `/api/incidents/priority`, and can use the existing resource recommendation flow.
+
+The feed does not supply an affected-person count or help-needed list. Those values are never inferred from magnitude, provider alert level, or coordinates. This remains an operator-assisted prototype, not an automatic emergency decision.
