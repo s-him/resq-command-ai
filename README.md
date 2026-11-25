@@ -48,7 +48,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # 156 automated pytest checks (each uses a temporary SQLite DB)
+│   ├── tests/                       # 157 automated pytest checks (each uses a temporary SQLite DB)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -302,3 +302,23 @@ curl -X POST http://127.0.0.1:8000/api/alerts/1/promote \
 The operation is atomic: it creates one open incident using the existing prototype severity calculation and stores `linked_incident_id` / `linked_at` on the source alert. A duplicate promotion returns HTTP 409. The new incident immediately appears in `/api/incidents` and `/api/incidents/priority`, and can use the existing resource recommendation flow.
 
 The feed does not supply an affected-person count or help-needed list. Those values are never inferred from magnitude, provider alert level, or coordinates. This remains an operator-assisted prototype, not an automatic emergency decision.
+
+---
+
+## Automatic public-feed synchronization (Stage 7)
+
+The FastAPI backend now starts independent background sync loops when the application starts: GDACS every 6 minutes by default, and USGS every 1 minute by default. Provider requests run in worker threads so they do not block normal API handling. Each provider has its own loop and failure log. The Alert Intelligence page continues refreshing the local API list every 60 seconds; the provider sync itself happens in the backend.
+
+Automatic sync is enabled by default. Disable it for offline work:
+
+```bash
+RESQ_ALERT_AUTO_SYNC_ENABLED=false ./run.sh
+```
+
+Change the intervals (seconds) without editing code:
+
+```bash
+RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.sh
+```
+
+The intervals must be at least 30 seconds; invalid or smaller values fall back to defaults. Manual **Sync Public Feeds** remains available. Manual and scheduled syncs for the same provider are serialized so they cannot race one another.
