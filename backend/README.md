@@ -6,7 +6,7 @@
 > - It does **not** predict disasters.
 > - A **human operator** must approve or reject every recommendation.
 
-This backend provides a FastAPI API, SQLite persistence, manual incident reporting, prototype severity scoring, resource recommendations, operator decision logging, and read-only public alert ingestion. External alerts are stored separately from incidents until an operator reviews them.
+This backend provides a FastAPI API, SQLite persistence, manual incident reporting, prototype severity scoring, resource recommendations, operator decision logging, read-only public alert ingestion, specialist-agent assessment, proximity-aware resource matching, and simulation-only response plans. External alerts are stored separately from incidents until an operator reviews them.
 
 ---
 
@@ -29,6 +29,8 @@ backend/
 │   ├── assessment_orchestrator.py # Runs the specialists and combines findings
 │   ├── assessment_repository.py   # Stores immutable assessment snapshots
 │   ├── assessment_schemas.py      # Assessment response contracts
+│   ├── response_plan_schemas.py   # Human-gated simulation plan contracts
+│   ├── response_plan_repository.py # Simulation reservations and audit history
 │   ├── schemas.py          # Pydantic models for incidents and resources
 │   ├── severity.py         # Rule-based severity scoring (prototype estimate)
 │   ├── prioritization.py   # Ranks open incidents by score, people affected, reported time
