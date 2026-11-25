@@ -32,7 +32,6 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── assessment_orchestrator.py # Runs agents and combines their findings
 │   │   ├── assessment_repository.py   # Persists immutable assessment snapshots
 │   │   ├── assessment_schemas.py      # Assessment API contracts
-│   │   ├── routers/response_plans.py   # Response simulation API routes
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
@@ -45,7 +44,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── resource_repository.py   # Parameterized SQLite queries for resources
 │   │   ├── recommendation_repository.py # Transactional queries for recommendations & action_history
 │   │   ├── errors.py                # Structured 422 validation error formatter
-│   │   └── routers/                 # /health, /api/incidents, /api/resources, /api/recommendations
+│   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
 │   ├── tests/                       # 150 automated pytest checks (each uses a temporary SQLite DB)
@@ -57,7 +56,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── services/                # Central fetch() client and domain API service modules
 │   │   ├── context/                 # Shared backend state (DataContext) and operation toasts
 │   │   ├── components/              # Layout shell, common UI primitives, map, and forms
-│   │   └── pages/                   # Dashboard, Incidents, IncidentDetails, Resources, Recommendations, ActivityHistory
+│   │   └── pages/                   # Dashboard, Incidents, IncidentDetails, Resources, Recommendations, Dispatch Simulation, ActivityHistory
 │   ├── .env.example                 # Safe local environment template
 │   ├── package.json                 # Frontend packages and scripts
 │   ├── package-lock.json            # Lockfile for reproducible npm installs
