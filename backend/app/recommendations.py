@@ -2,9 +2,9 @@
 Rule-based resource recommendations (prototype).
 
 IMPORTANT: These are simple demonstration rules for a college mini-project.
-They are NOT real emergency dispatch guidance. Recommendations are suggestions
-only: they do NOT reduce resource quantities and MUST be reviewed by a human
-operator.
+They are NOT real emergency dispatch guidance. In MANUAL mode, recommendations
+wait for operator approval. In AUTO mode, configured policy may create a
+simulated assignment, but physical stock is never reduced and no real dispatch occurs.
 
 HOW MATCHING WORKS
 ------------------
@@ -46,8 +46,9 @@ from app.schemas import (
 
 DISCLAIMER = (
     "Unvalidated prototype suggestion for an academic demonstration. "
-    "Not real emergency guidance. Resource quantities have NOT been changed; "
-    "a human operator must approve or reject this recommendation."
+    "Not real emergency guidance. Physical resource quantities are NOT changed. "
+    "MANUAL mode requires operator approval; AUTO mode can create virtual "
+    "assignments only under the stored operator settings."
 )
 
 # Simple mapping from incident help needs to registered resource types.

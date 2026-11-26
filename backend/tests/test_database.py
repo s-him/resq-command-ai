@@ -143,7 +143,7 @@ def test_indexes_and_schema_migrations_exist_after_init(client):
         "idx_recommendation_items_recommendation_id",
         "idx_recommendation_items_resource_id",
     }.issubset(index_names)
-    assert applied == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+    assert applied == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 
 
 # ---------- Upgrading a pre-upgrade legacy database ----------
@@ -270,6 +270,35 @@ def test_old_rules_version_is_recalculated(client):
     assert updated["severity"]["factors"][3]["points"] == 12
 
 
+def test_migration_013_creates_safe_manual_dispatch_defaults(client):
+    settings = client.get("/api/dispatch/settings")
+    assert settings.status_code == 200
+    assert settings.json()["mode"] == "manual"
+    assert settings.json()["paused"] is False
+    assert settings.json()["minimum_severity"] == "High"
+
+    connection = database.get_connection()
+    try:
+        tables = {
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+        plan_columns = {
+            row["name"] for row in connection.execute(
+                "PRAGMA table_info(response_plans)"
+            ).fetchall()
+        }
+        versions = migrations.get_applied_versions(connection)
+    finally:
+        connection.close()
+
+    assert {"dispatch_settings", "dispatch_deployments", "dispatch_audit_events"}.issubset(tables)
+    assert "dispatch_mode" in plan_columns
+    assert 13 in versions
+
+
 def test_migration_012_adds_optional_hazard_signal_columns(client):
     connection = database.get_connection()
     try:
@@ -282,14 +311,14 @@ def test_migration_012_adds_optional_hazard_signal_columns(client):
         connection.close()
 
     assert {"event_at", "hazard_magnitude", "hazard_magnitude_unit", "provider_alert_level"}.issubset(columns)
-    assert 12 in versions
+    assert {12, 13}.issubset(versions)
 
 
 def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     first = database.init_database()
     second = database.init_database()
 
-    assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
     assert second == []
 
     connection = database.get_connection()
@@ -298,7 +327,7 @@ def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     finally:
         connection.close()
 
-    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
 
 
 # ---------- Invalid legacy rows halt safely without losing data ----------

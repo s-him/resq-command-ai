@@ -30,6 +30,10 @@ def _row_to_resource(row: sqlite3.Row) -> Resource:
         longitude=row["longitude"],
         simulation_reserved_quantity=reserved,
         simulation_remaining_quantity=max(0, physical - reserved),
+        deployed_quantity=(
+            int(row["deployed_quantity"])
+            if "deployed_quantity" in row_keys else 0
+        ),
     )
 
 
@@ -88,7 +92,12 @@ def create_resource(data: ResourceCreate) -> Resource:
                        FROM response_plan_items rpi
                        JOIN response_plans rp ON rp.id = rpi.response_plan_id
                        WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
-                   ), 0) AS simulation_reserved_quantity
+                   ), 0) AS simulation_reserved_quantity,
+                   COALESCE((
+                       SELECT SUM(d.assigned_quantity)
+                       FROM dispatch_deployments d
+                       WHERE d.resource_id = r.id AND d.status = 'deployed'
+                   ), 0) AS deployed_quantity
             FROM resources r
             WHERE r.id = ?
             """,
@@ -115,7 +124,12 @@ def list_resources() -> list[Resource]:
                        FROM response_plan_items rpi
                        JOIN response_plans rp ON rp.id = rpi.response_plan_id
                        WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
-                   ), 0) AS simulation_reserved_quantity
+                   ), 0) AS simulation_reserved_quantity,
+                   COALESCE((
+                       SELECT SUM(d.assigned_quantity)
+                       FROM dispatch_deployments d
+                       WHERE d.resource_id = r.id AND d.status = 'deployed'
+                   ), 0) AS deployed_quantity
             FROM resources r
             ORDER BY r.id
             """
@@ -137,7 +151,12 @@ def list_available_resources() -> list[Resource]:
                        FROM response_plan_items rpi
                        JOIN response_plans rp ON rp.id = rpi.response_plan_id
                        WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
-                   ), 0) AS simulation_reserved_quantity
+                   ), 0) AS simulation_reserved_quantity,
+                   COALESCE((
+                       SELECT SUM(d.assigned_quantity)
+                       FROM dispatch_deployments d
+                       WHERE d.resource_id = r.id AND d.status = 'deployed'
+                   ), 0) AS deployed_quantity
             FROM resources r
             WHERE r.availability_status = ? AND r.quantity_available > 0
             ORDER BY r.id
@@ -167,7 +186,12 @@ def list_nearby_resources(
                        FROM response_plan_items rpi
                        JOIN response_plans rp ON rp.id = rpi.response_plan_id
                        WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
-                   ), 0) AS simulation_reserved_quantity
+                   ), 0) AS simulation_reserved_quantity,
+                   COALESCE((
+                       SELECT SUM(d.assigned_quantity)
+                       FROM dispatch_deployments d
+                       WHERE d.resource_id = r.id AND d.status = 'deployed'
+                   ), 0) AS deployed_quantity
             FROM resources r
             WHERE r.availability_status = ?
               AND r.quantity_available > COALESCE((
@@ -216,7 +240,12 @@ def _resource_with_reservations(connection: sqlite3.Connection, resource_id: int
                    FROM response_plan_items rpi
                    JOIN response_plans rp ON rp.id = rpi.response_plan_id
                    WHERE rpi.resource_id = r.id AND rp.status = 'simulated'
-               ), 0) AS simulation_reserved_quantity
+               ), 0) AS simulation_reserved_quantity,
+               COALESCE((
+                   SELECT SUM(d.assigned_quantity)
+                   FROM dispatch_deployments d
+                   WHERE d.resource_id = r.id AND d.status = 'deployed'
+               ), 0) AS deployed_quantity
         FROM resources r
         WHERE r.id = ?
         """,

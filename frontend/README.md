@@ -63,3 +63,13 @@ Open **http://localhost:5173** in your browser (with the FastAPI backend running
 Open an incident and select **Run Agent Pipeline** to run the five advisory incident agents. The **Agent Activity** section shows each agent's selected mode (llm or rules), rationale, confidence indicator, execution time, and structured result. The API stores run snapshots under GET /api/incidents/{id}/agent-trace.
 
 LLM use is disabled by default and configured in the backend process environment. The frontend never receives or stores the provider API key. All agent outputs remain suggestions; the UI does not treat them as confirmation or dispatch authorization.
+
+
+## Dispatch mode controls
+
+The Dispatch Simulation page exposes the database-backed MANUAL/AUTO setting,
+the minimum severity threshold and the emergency pause switch. MANUAL remains
+the default. AUTO plans show their linked incident/resource assignments and
+allow the operator to Complete or Recall them. All quantities are virtual
+reservations in the prototype ledger; physical inventory is unchanged and no
+real responder is contacted.

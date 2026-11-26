@@ -94,8 +94,8 @@ export const STATUS_LABELS = {
 };
 
 export const SAFETY_NOTICE =
-  "ACADEMIC PROTOTYPE | SIMULATED / REPORTED DATA ONLY | HUMAN REVIEW REQUIRED | NOT FOR REAL EMERGENCY DISPATCH";
+  "ACADEMIC PROTOTYPE | SIMULATED / REPORTED DATA ONLY | AUTO ASSIGNMENTS ARE VIRTUAL | NO REAL RESPONDER OR STOCK MOVEMENT | NOT FOR REAL EMERGENCY USE";
 
 export const HUMAN_REVIEW_WARNING =
-  "Operator review required. This recommendation is a prototype-generated suggestion and must not be treated as an actual dispatch instruction.";
+  "MANUAL mode requires operator review. AUTO mode can create virtual assignments only; neither mode is a real dispatch instruction.";
 

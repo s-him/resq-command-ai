@@ -691,3 +691,43 @@ curl http://127.0.0.1:8000/api/incidents/1/agent-trace
 ~~~
 
 The Incident Details page exposes this as **Run Agent Pipeline** and shows an **Agent Activity** timeline. The run is analysis-only: it does not create or modify incidents, save a resource recommendation, approve a plan, modify physical stock, or dispatch a team. Existing operator gates remain intact.
+
+
+---
+
+## Automatic dispatch simulation (Phase 3)
+
+Migration 013 adds a singleton dispatch settings row (default `manual`, not
+paused, minimum severity `High`), a per-resource deployment ledger, dispatch
+audit events, and a `dispatch_mode` field on response plans.
+
+When the operator switches to `auto`, each eligible open incident runs the
+five-agent pipeline and the deterministic resource matcher. The matcher’s
+recommended quantities are then revalidated in a single SQLite
+`BEGIN IMMEDIATE` transaction. Recommendation approval, response-plan rows,
+active reservations, deployment assignments and `system-auto` audit events
+commit together or roll back together. AUTO assignments remain virtual:
+`quantity_available` is not physically decremented. The API separately reports
+`simulation_reserved_quantity`, `simulation_remaining_quantity` and
+`deployed_quantity`.
+
+The `minimum_severity` setting accepts `High` (High or Critical) or
+`Critical`. MANUAL remains the default. The pause switch blocks new automatic
+assignments and retry attempts. Complete and Recall release reservations and
+preserve deployment lifecycle audit events. When stock is added or increased,
+the service retries shortfalls in deterministic priority order and subtracts
+previously active deployed quantities before proposing additional units.
+
+### API and safety checks
+
+| Method | URL | Purpose |
+|---|---|---|
+| GET/PATCH | `/api/dispatch/settings` | Persist mode, severity threshold and emergency pause |
+| GET | `/api/dispatch/deployments` | Inspect incident-linked AUTO assignments |
+| GET | `/api/dispatch/audit` | Inspect actor-labelled dispatch audit events |
+| POST | `/api/dispatch/incidents/{id}/retry` | Retry a previously recorded shortfall |
+| POST | `/api/response-plans/{id}/recall` | Recall an active AUTO assignment |
+| POST | `/api/response-plans/{id}/complete` | Complete a simulated assignment |
+
+All AUTO output is a simulation only. It does not contact emergency services,
+send notifications, move real responders, or modify physical inventory.

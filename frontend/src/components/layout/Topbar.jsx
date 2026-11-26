@@ -10,6 +10,7 @@ const ROUTE_META = {
   incident: { section: "Operations · Incidents", title: "Incident Investigation" },
   resources: { section: "Operations", title: "Resource Inventory" },
   recommendations: { section: "Operations", title: "Operator Decision Centre" },
+  dispatch: { section: "Operations", title: "Dispatch Simulation & Controls" },
   history: { section: "Monitoring", title: "Activity & Audit History" },
   notfound: { section: "Navigation", title: "Page Not Found" },
 };

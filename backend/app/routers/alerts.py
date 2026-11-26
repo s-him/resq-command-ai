@@ -106,17 +106,22 @@ def promote_reviewed_alert(alert_id: int, incident_data: IncidentCreate) -> dict
 
     alert = alert_repository.get_alert_by_id(alert_id)
     incident = incident_repository.get_incident_by_id(incident_id)
+    from app.auto_dispatch_service import try_auto_dispatch_incident
+
+    try_auto_dispatch_incident(incident_id)
     return {
         "alert": alert,
         "incident": incident,
         "message": (
             f"Reviewed external alert #{alert_id} was linked to incident "
             f"#{incident_id}. The incident is now included in the normal priority "
-            "and resource-recommendation workflows."
+            "and resource-recommendation workflows. If AUTO mode is enabled and the " 
+            "incident meets its threshold, a simulated assignment may also be created."
         ),
         "disclaimer": (
             "The incident fields were supplied or confirmed by an operator. "
             "The existing incident severity score is an unvalidated prototype "
-            "estimate, not emergency guidance. Promotion does not dispatch resources."
+            "estimate, not emergency guidance. AUTO may create only a simulated " 
+            "database assignment; no external emergency service is contacted."
         ),
     }

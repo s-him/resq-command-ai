@@ -332,6 +332,7 @@ class Resource(BaseModel):
     longitude: float | None = None
     simulation_reserved_quantity: int = 0
     simulation_remaining_quantity: int | None = None
+    deployed_quantity: int = 0
 
 
 

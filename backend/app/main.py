@@ -24,7 +24,7 @@ from app.config import (
 )
 from app.database import init_database
 from app.errors import validation_error_handler
-from app.routers import alerts, assessments, health, incidents, recommendations, resources, response_plans
+from app.routers import alerts, assessments, dispatch, health, incidents, recommendations, resources, response_plans
 
 
 logger = logging.getLogger(__name__)
@@ -126,6 +126,7 @@ app.include_router(incidents.router)
 app.include_router(resources.router)
 app.include_router(recommendations.router)
 app.include_router(response_plans.router)
+app.include_router(dispatch.router)
 
 
 @app.get("/", tags=["Root"])
@@ -140,6 +141,7 @@ def root() -> dict:
         "priority": "/api/incidents/priority",
         "resources": "/api/resources",
         "response_plans": "/api/response-plans",
+        "dispatch_settings": "/api/dispatch/settings",
         "agent_trace": "/api/incidents/{incident_id}/agent-trace",
     }
 

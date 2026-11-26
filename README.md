@@ -36,7 +36,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001-012)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-013)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -115,7 +115,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`012` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields; existing incidents are rescored once under the new rules version without losing their original incident data.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`013` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields; existing incidents are rescored once under the new rules version without losing their original incident data.
 
 ---
 
@@ -421,7 +421,7 @@ Every provider response must be JSON and pass its agent's Pydantic schema. A dis
 
 ## Severity rules v2 and affected-area priority (Phase 2)
 
-Severity remains a transparent **0–100 prototype estimate**, not a calibrated probability or official emergency instruction. Rules version \`demo-rules-v2\` adds four evidence dimensions to the existing people/help factors:
+Severity remains a transparent **0–100 prototype estimate**, not a calibrated probability or official emergency instruction. Rules version `demo-rules-v2` adds four evidence dimensions to the existing people/help factors:
 
 | Factor | Maximum | Rule summary |
 |---|---:|---|
@@ -432,8 +432,48 @@ Severity remains a transparent **0–100 prototype estimate**, not a calibrated 
 | Event/report recency | 15 | Under 1 hour: 15; up to 6 hours: 12; up to 24 hours: 9; up to 72 hours: 5; older/missing: 0 |
 | Vulnerable population | 5 | Explicit hospital, school, elderly, child, infant or care-setting terms in report text |
 
-Hazard signal bands include GDACS-style \`green\` / \`orange\` / \`red\` alert levels, USGS-style earthquake magnitudes, cyclone category/wind measurements, and flood-water depth with supported units. If both a provider alert level and magnitude are supplied, the strongest supported signal is used once, not added twice. Unsupported units are stored for context and receive no invented points.
+Hazard signal bands include GDACS-style `green` / `orange` / `red` alert levels, USGS-style earthquake magnitudes, cyclone category/wind measurements, and flood-water depth with supported units. If both a provider alert level and magnitude are supplied, the strongest supported signal is used once, not added twice. Unsupported units are stored for context and receive no invented points.
 
-Open incidents retain the deterministic order **severity score → people affected → earlier report time → ID**. The new \`GET /api/incidents/areas/priority\` endpoint groups open incidents by the recorded location string (trimmed and matched case-insensitively), then ranks areas by highest individual incident score, total reported people affected, earliest report, and top incident ID. It does not geocode locations, infer administrative boundaries, or query population data.
+Open incidents retain the deterministic order **severity score → people affected → earlier report time → ID**. The new `GET /api/incidents/areas/priority` endpoint groups open incidents by the recorded location string (trimmed and matched case-insensitively), then ranks areas by highest individual incident score, total reported people affected, earliest report, and top incident ID. It does not geocode locations, infer administrative boundaries, or query population data.
 
 Older incidents with a previous or missing rules version are recalculated at startup using the stored incident fields and migration 012 metadata columns. No incident is deleted. The new area view is shown on the main dashboard and can be refreshed with the rest of the dashboard data.
+
+
+---
+
+## Automatic dispatch simulation (Phase 3)
+
+The operator-controlled setting is stored in SQLite and defaults to **MANUAL**.
+In MANUAL mode, recommendations and response plans continue to require the
+existing operator decisions. In AUTO mode, open incidents at or above the
+configured High/Critical threshold run the five-agent trace, create a resource
+recommendation, and create a simulated deployment assignment.
+
+AUTO reservations are created in one `BEGIN IMMEDIATE` transaction. The
+transaction re-checks resource availability and active reservations before it
+records the recommendation approval, response plan, per-resource deployment
+assignment, and audit events. Each deployment records `incident_id`,
+`resource_id`, quantity, state and actor (`system-auto`). Resource inventory
+reports both reserved and deployed quantities; the physical stock quantity is
+not edited. The ledger prevents double-reservation and negative remaining stock.
+
+The emergency pause switch prevents new AUTO assignments and shortfall retries.
+Complete and Recall release the virtual reservation and record lifecycle events.
+When new resource stock is added or increased, previously recorded shortfalls
+are retried in deterministic incident priority order. The retry calculates only
+the remaining unfilled quantity after earlier active assignments, rather than
+requesting the full original amount again.
+
+API:
+- `GET/PATCH /api/dispatch/settings` — read or update mode, pause state and minimum severity.
+- `GET /api/dispatch/deployments` — view per-resource assignments and their lifecycle state.
+- `GET /api/dispatch/audit` — inspect audit events, including the `system-auto` actor.
+- `POST /api/dispatch/incidents/{id}/retry` — explicitly retry a recorded shortfall.
+- `POST /api/response-plans/{id}/recall` — recall an active AUTO simulation.
+- `POST /api/response-plans/{id}/complete` — complete and release an active simulation.
+
+**Safety boundary:** this is not real-world dispatch. AUTO creates database
+assignments and virtual stock reservations only. It does not contact emergency
+services, send SMS, move real teams/vehicles, or physically deduct inventory.
+The mode switch and emergency pause are operator workflow controls in this
+academic prototype, not authenticated security controls.

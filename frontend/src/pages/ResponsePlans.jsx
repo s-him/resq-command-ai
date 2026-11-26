@@ -151,8 +151,8 @@ export default function ResponsePlans() {
         <div>
           <h2 className="page-heading">Response Plan Simulation</h2>
           <p className="page-subheading">
-            Turn an approved resource recommendation into a human-reviewed allocation simulation.
-            This page does not dispatch real teams or contact emergency services.
+            Configure MANUAL or AUTO simulation mode, review assignments and manage virtual reservations.
+            AUTO may create database assignments for eligible incidents, but never dispatches real teams or contacts emergency services.
           </p>
         </div>
         <div className="page-hero-actions">

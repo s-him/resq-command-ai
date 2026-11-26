@@ -46,7 +46,11 @@ def create_incident(incident: IncidentCreate) -> Incident:
     By the time this function runs, FastAPI has already validated the request
     body against IncidentCreate, so `incident` is guaranteed to be valid.
     """
-    return incident_repository.create_incident(incident)
+    created = incident_repository.create_incident(incident)
+    from app.auto_dispatch_service import try_auto_dispatch_incident
+
+    try_auto_dispatch_incident(created.id)
+    return created
 
 
 @router.get("", response_model=list[Incident])

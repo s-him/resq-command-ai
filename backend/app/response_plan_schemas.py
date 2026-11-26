@@ -56,6 +56,8 @@ class ResponsePlanItem(BaseModel):
     assigned_quantity: int
     distance_km: float | None = None
     distance_basis: str
+    deployment_status: str | None = None
+    assigned_incident_id: int | None = None
 
 
 class ResponsePlanAction(BaseModel):
@@ -70,6 +72,7 @@ class ResponsePlan(BaseModel):
     incident_id: int
     recommendation_id: int
     status: ResponsePlanStatus
+    dispatch_mode: str = "manual"
     summary: str
     decision_note: str | None = None
     created_at: datetime

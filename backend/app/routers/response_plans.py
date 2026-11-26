@@ -128,3 +128,18 @@ def complete_response_plan(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except response_plan_repository.ResponsePlanConflict as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+
+@router.post(
+    "/api/response-plans/{plan_id}/recall",
+    response_model=ResponsePlan,
+)
+def recall_response_plan(plan_id: int, request: ResponsePlanCompleteRequest) -> dict:
+    """Recall an AUTO simulated deployment and release its virtual reservations."""
+    try:
+        return response_plan_repository.recall_response_plan(plan_id, request.note)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except response_plan_repository.ResponsePlanConflict as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

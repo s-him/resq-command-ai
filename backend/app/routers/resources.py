@@ -20,7 +20,11 @@ def create_resource(resource: ResourceCreate) -> Resource:
     By the time this function runs, FastAPI has already validated the request
     body against ResourceCreate, so `resource` is guaranteed to be valid.
     """
-    return resource_repository.create_resource(resource)
+    created = resource_repository.create_resource(resource)
+    from app.auto_dispatch_service import retry_shortfall_dispatches
+
+    retry_shortfall_dispatches()
+    return created
 
 
 @router.get("", response_model=list[Resource])
@@ -74,6 +78,9 @@ def update_resource(resource_id: int, update: ResourceUpdate) -> Resource:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Resource {resource_id} not found.",
         )
+    from app.auto_dispatch_service import retry_shortfall_dispatches
+
+    retry_shortfall_dispatches()
     return resource
 
 
