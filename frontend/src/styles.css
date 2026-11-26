@@ -10,13 +10,13 @@
   --sidebar-active-text: #17725F;
   --bg: #F8FBFA;
   --card: #FFFFFF;
-  --primary: #2BA88A;
-  --primary-hover: #238C73;
+  --primary: #17725F;
+  --primary-hover: #155F4B;
   --accent: #F4B860;
   --border: #D5E8E1;
   --text-heading: #15302A;
   --text-body: #486159;
-  --text-muted: #7C9690;
+  --text-muted: #536B63;
 
   /* Severity colors: semantic use only */
   --severity-critical-bg: #FBE4E2;
@@ -4252,8 +4252,8 @@ table tbody tr:hover,
 
   --bg: #0D1714;
   --card: #15231E;
-  --primary: #36B58F;
-  --primary-hover: #269A78;
+  --primary: #177B5F;
+  --primary-hover: #166C55;
   --accent: #F4B860;
   --border: #294238;
 

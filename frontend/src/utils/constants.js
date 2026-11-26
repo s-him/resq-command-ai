@@ -61,10 +61,10 @@ export const SEVERITY_LEVELS = [
 ];
 
 export const SEVERITY_COLORS = {
-  Critical: "#DC2626",
-  High: "#EA580C",
-  Medium: "#B7791F",
-  Low: "#15803D",
+  Critical: "var(--severity-critical-text)",
+  High: "var(--severity-high-text)",
+  Medium: "var(--severity-medium-text)",
+  Low: "var(--severity-low-text)",
 };
 
 export const HAZARD_ICONS = {
