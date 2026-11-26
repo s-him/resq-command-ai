@@ -22,6 +22,14 @@ export function hasValidCoordinates(incident) {
   );
 }
 
+function getThemeColor(token, fallback) {
+  const value = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue(token)
+    .trim();
+  return value || fallback;
+}
+
 function escapeHtml(text) {
   return String(text ?? "")
     .replace(/&/g, "&amp;")
@@ -82,15 +90,19 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
     }
 
     const bounds = [];
+    const themeColor = (token, fallback) => getThemeColor(token, fallback);
 
     mappedResources.forEach((resource) => {
       const status = resource.availability_status || "unknown";
       const color =
-        status === "available" ? "#0F9D8A" :
-        status === "limited" ? "#D97706" : "#64748B";
+        status === "available"
+          ? themeColor("--severity-low-text", "#1F6B3A")
+          : status === "limited"
+            ? themeColor("--severity-medium-text", "#7A5A00")
+            : themeColor("--text-muted", "#64748B");
       const marker = L.circleMarker([resource.latitude, resource.longitude], {
         radius: 7,
-        color: "#FFFFFF",
+        color: themeColor("--card", "#FFFFFF"),
         weight: 2,
         fillColor: color,
         fillOpacity: 0.95,
@@ -122,11 +134,17 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
 
     mapped.forEach((incident) => {
       const level = incident.severity?.level || "Low";
-      const color = SEVERITY_COLORS[level] || "#14B8A6";
+      const severityToken = {
+        Critical: "--severity-critical-text",
+        High: "--severity-high-text",
+        Medium: "--severity-medium-text",
+        Low: "--severity-low-text",
+      }[level] || "--severity-low-text";
+      const color = themeColor(severityToken, SEVERITY_COLORS[level] || "#1F6B3A");
 
       const marker = L.circleMarker([incident.latitude, incident.longitude], {
         radius: 9,
-        color: "#101B2D",
+        color: themeColor("--text-heading", "#15302A"),
         weight: 2,
         fillColor: color,
         fillOpacity: 0.92,
@@ -175,7 +193,7 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
 
         <div className="map-legend" aria-label="Map marker legend">
           <span className="legend-pill">
-            <span className="legend-dot" style={{ backgroundColor: "#0F9D8A" }} />
+            <span className="legend-dot" style={{ backgroundColor: "var(--severity-low-text)" }} />
             <span>Resources</span>
           </span>
           {SEVERITY_LEVELS.map((level) => (
@@ -216,7 +234,7 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
             ` · ${unmappedCount} incident(s) and ${unmappedResourcesCount} resource(s) without coordinates`}
         </span>
         <span className="text-muted">
-          Click a marker to inspect its record · Incident markers use severity colours; resource markers use green/amber/grey
+          Click a marker to inspect its record · Incident markers use severity colours; resource markers use green/amber/muted status colours
         </span>
       </div>
     </section>

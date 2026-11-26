@@ -21,7 +21,7 @@ const CONNECTION_LABELS = {
   checking: "Checking connection",
 };
 
-export default function Topbar({ route, onOpenMobileNav, onOpenCreateIncident }) {
+export default function Topbar({ route, theme = "light", onToggleTheme, onOpenMobileNav, onOpenCreateIncident }) {
   const { health, liveStatus, refreshing, refreshAll } = useData();
   const now = useNow(30000);
   const meta = ROUTE_META[route.name] || ROUTE_META.dashboard;
@@ -65,6 +65,20 @@ export default function Topbar({ route, onOpenMobileNav, onOpenCreateIncident })
           <span className="live-dot" aria-hidden="true" />
           <span>{liveStatus === "live" ? "LIVE" : liveStatus === "polling" ? "POLLING" : "RECONNECTING"}</span>
         </div>
+
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={onToggleTheme}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+          aria-pressed={theme === "dark"}
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+        >
+          <span className="theme-toggle-icon" aria-hidden="true">
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={14} />
+          </span>
+          <span className="theme-toggle-label">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+        </button>
 
         <span className="topbar-clock tabular" aria-label="Current local time">
           {formatDateTime(now)}

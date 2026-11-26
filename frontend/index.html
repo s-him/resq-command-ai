@@ -1,9 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#101B2D" />
+    <script>
+      try {
+        const savedTheme = localStorage.getItem("resq-command-theme");
+        if (savedTheme === "light" || savedTheme === "dark") {
+          document.documentElement.dataset.theme = savedTheme;
+        }
+      } catch {
+        // Default to the light theme when browser storage is unavailable.
+      }
+    </script>
+    <meta name="theme-color" content="#F8FBFA" />
     <meta
       name="description"
       content="ResQ Command - academic prototype of a multi-agent disaster relief coordination engine. Simulated / reported data only."
