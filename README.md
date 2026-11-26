@@ -69,16 +69,29 @@ This repository contains a full-stack academic decision-support prototype:
 
 ---
 
-## Prerequisites (Fresh Windows 10 / 11 Machine)
+## Prerequisites
 
 1. **Python 3.10 or newer** (tested with Python 3.10–3.14)
-   - Verify in PowerShell: `python --version`
+   - Verify with `python3 --version` on Linux/macOS or `python --version` on Windows
    - Note: SQLite support is built into Python's standard library (`sqlite3`), so no separate database server installation is required.
 2. **Node.js 18.18+ or 20+ LTS** (includes `npm`)
-   - Verify in PowerShell: `node --version` and `npm --version`
+   - Verify with `node --version` and `npm --version`
 3. **Git** (to clone the repository)
 
 ---
+
+## Quick Start (Linux / macOS)
+
+Open a terminal and run:
+
+```bash
+git clone https://github.com/s-him/resq-command-ai.git
+cd resq-command-ai
+chmod +x run.sh
+./run.sh
+```
+
+The launcher creates `backend/.venv` when needed, installs the backend and frontend dependencies, and starts both local development servers. Open **http://localhost:5173** for the dashboard or **http://127.0.0.1:8000/docs** for the API. Press **Ctrl+C** in the launcher terminal to stop both servers.
 
 ## Quick Start (Fresh Clone on Windows PowerShell)
 

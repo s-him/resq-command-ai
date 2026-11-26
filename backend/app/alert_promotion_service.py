@@ -6,6 +6,7 @@ same SQLite transaction. No response plan or dispatch is created.
 """
 
 import json
+from datetime import datetime
 
 from app import severity
 from app.database import get_connection
@@ -66,6 +67,9 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
         if provider_level not in {"red", "orange", "green"}:
             provider_level = None
         event_at = data.event_at or alert["event_at"]
+        event_at_for_storage = (
+            event_at.isoformat() if isinstance(event_at, datetime) else event_at
+        )
         assessment = severity.calculate_severity(
             data.people_affected,
             data.help_needed,
@@ -100,7 +104,7 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
                 json.dumps([item.value for item in data.help_needed]),
                 IncidentStatus.OPEN.value,
                 utc_now().isoformat(),
-                event_at,
+                event_at_for_storage,
                 assessment.score,
                 assessment.level.value,
                 assessment.explanation,

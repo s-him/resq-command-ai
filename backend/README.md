@@ -82,8 +82,23 @@ backend/
 
 ## Requirements
 
-- Windows 10/11
-- Python 3.10 or newer (check with `python --version`)
+- Windows 10/11, Linux, or macOS
+- Python 3.10 or newer
+- Git (for cloning the repository)
+
+## Setup (Linux / macOS)
+
+Run these commands from the repository root:
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Then start the API from `backend/` with `uvicorn app.main:app --reload`. For the full application, the repository-root `./run.sh` launcher starts both the backend and frontend.
 
 ---
 

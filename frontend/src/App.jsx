@@ -1,18 +1,19 @@
-import React, { useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import EmptyState from "./components/common/EmptyState";
 import IncidentFormModal from "./components/incidents/IncidentFormModal";
 import AppShell from "./components/layout/AppShell";
 import { DataProvider } from "./context/DataContext";
 import { ToastProvider } from "./context/ToastContext";
 import { navigate, useHashRoute } from "./hooks/useHashRoute";
-import ActivityHistory from "./pages/ActivityHistory";
-import Alerts from "./pages/Alerts";
-import Dashboard from "./pages/Dashboard";
-import IncidentDetails from "./pages/IncidentDetails";
-import Incidents from "./pages/Incidents";
-import Recommendations from "./pages/Recommendations";
-import Resources from "./pages/Resources";
-import ResponsePlans from "./pages/ResponsePlans";
+
+const ActivityHistory = lazy(() => import("./pages/ActivityHistory"));
+const Alerts = lazy(() => import("./pages/Alerts"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const IncidentDetails = lazy(() => import("./pages/IncidentDetails"));
+const Incidents = lazy(() => import("./pages/Incidents"));
+const Recommendations = lazy(() => import("./pages/Recommendations"));
+const Resources = lazy(() => import("./pages/Resources"));
+const ResponsePlans = lazy(() => import("./pages/ResponsePlans"));
 
 function RoutedWorkspace({ route, onOpenCreateIncident }) {
   switch (route.name) {
@@ -62,10 +63,18 @@ export default function App() {
     <ToastProvider>
       <DataProvider>
         <AppShell route={route} onOpenCreateIncident={handleOpenCreateIncident}>
-          <RoutedWorkspace
-            route={route}
-            onOpenCreateIncident={handleOpenCreateIncident}
-          />
+          <Suspense
+            fallback={
+              <div className="surface-card" role="status">
+                Loading workspace…
+              </div>
+            }
+          >
+            <RoutedWorkspace
+              route={route}
+              onOpenCreateIncident={handleOpenCreateIncident}
+            />
+          </Suspense>
         </AppShell>
 
         <IncidentFormModal
