@@ -64,6 +64,8 @@ This repository contains a full-stack academic decision-support prototype:
 │   ├── package-lock.json            # Lockfile for reproducible npm installs
 │   └── README.md                    # Frontend architecture reference
 ├── .gitignore
+├── run.sh                           # Linux / macOS one-click launcher
+├── run.bat                          # Windows one-click launcher
 └── README.md                        # This file
 ```
 
@@ -93,20 +95,33 @@ chmod +x run.sh
 
 The launcher creates `backend/.venv` when needed, installs the backend and frontend dependencies, and starts both local development servers. Open **http://localhost:5173** for the dashboard or **http://127.0.0.1:8000/docs** for the API. Press **Ctrl+C** in the launcher terminal to stop both servers.
 
-## Quick Start (Fresh Clone on Windows PowerShell)
+## Quick Start (Windows 10 / 11)
 
-Open **Windows PowerShell** and clone the repository:
+Install **Python 3.10+** and **Node.js 18.18+ or 20+ LTS** first. During Python setup, enable **Add Python to PATH**. Node.js should include npm.
+
+Clone the repository in PowerShell:
 
 ```powershell
 git clone https://github.com/s-him/resq-command-ai.git
 cd resq-command-ai
 ```
 
-You will run the **backend** in **Terminal 1** and the **frontend** in **Terminal 2**.
+Then either double-click **`run.bat`** in File Explorer or launch it from PowerShell:
 
----
+```powershell
+.\run.bat
+```
 
-### Terminal 1 — Backend Setup & Startup (`backend/`)
+The launcher creates the backend virtual environment when needed, installs Python packages and frontend packages from the lockfile, and starts the API and dashboard in two separate command windows. The first setup needs an internet connection to download dependencies. It opens the dashboard automatically when Vite is ready.
+
+- Dashboard: **http://127.0.0.1:5173**
+- API docs: **http://127.0.0.1:8000/docs**
+
+Keep both **ResQ Command Backend** and **ResQ Command Frontend** windows open while using the app. Close both windows to stop the servers. Make sure ports **8000** and **5173** are not already occupied.
+
+### Manual setup — Terminal 1 (Backend)
+
+Prefer starting each service yourself? Use these optional manual steps.
 
 From the repository root folder:
 
@@ -132,7 +147,7 @@ uvicorn app.main:app --reload
 
 ---
 
-### Terminal 2 — Frontend Setup & Startup (`frontend/`)
+### Manual setup — Terminal 2 (Frontend)
 
 Open a **second** Windows PowerShell window at the repository root folder:
 
