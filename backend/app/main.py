@@ -24,7 +24,7 @@ from app.config import (
 )
 from app.database import init_database
 from app.errors import validation_error_handler
-from app.routers import alerts, assessments, dispatch, events, health, incidents, recommendations, resources, response_plans
+from app.routers import alerts, assessments, demo, dispatch, events, health, incidents, recommendations, resources, response_plans
 
 
 logger = logging.getLogger(__name__)
@@ -128,6 +128,7 @@ app.include_router(recommendations.router)
 app.include_router(response_plans.router)
 app.include_router(dispatch.router)
 app.include_router(events.router)
+app.include_router(demo.router)
 
 
 @app.get("/", tags=["Root"])

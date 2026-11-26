@@ -1,12 +1,12 @@
 # Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine (ResQ Command)
 
-> **ACADEMIC PROTOTYPE | SIMULATED / REPORTED DATA ONLY | HUMAN REVIEW REQUIRED | NOT FOR REAL EMERGENCY DISPATCH**
+> **ACADEMIC PROTOTYPE | EXTERNAL ALERTS REQUIRE HUMAN REVIEW | DEMO DATA IS SIMULATED | AUTO ASSIGNMENTS ARE VIRTUAL | NOT FOR REAL EMERGENCY DISPATCH**
 >
 > - This is a **college mini-project demonstration**, not a real emergency response service.
 > - It imports read-only public alerts from **GDACS** (multi-hazard) and **USGS** (earthquakes). It does **not** connect to emergency services or live dispatch systems.
 > - It does **not** predict disasters.
 > - Severity scores and resource matches are **unvalidated rule-based prototype estimates**.
-> - A **human operator** must review and approve or reject every recommendation. Approving a recommendation records an audit decision in SQLite and **never dispatches or deducts actual resources**.
+> - Imported external alerts require operator review before promotion. **MANUAL** dispatch mode waits for operator decisions; **AUTO** may create virtual database assignments under the configured severity threshold. Neither mode contacts responders, moves vehicles, or deducts physical inventory.
 
 ---
 
@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, and a human-gated response-plan simulation ledger, versioned database migrations (`001`–`012`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, manual and automatic virtual-dispatch workflows with an audit ledger, a Server-Sent Events update stream, and repeatable SIMULATED demo scenarios, versioned database migrations (`001`–`013`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -507,3 +507,131 @@ SSE uses a bounded in-process queue and is suitable for this single-process
 academic prototype. It is not a durable event log or a cross-worker broker.
 A multi-worker deployment would need shared messaging. If the browser misses
 an event, reconnect and REST refresh restore current state.
+
+
+---
+
+## Demo mode and acceptance walkthrough (Phase 5)
+
+ResQ Command includes three repeatable synthetic scenarios: **cyclone**, **flood**, and **earthquake**. Each scenario creates three sample alerts across different areas, promotes them through the same reviewed-alert incident workflow, creates four clearly labeled demo resource pools, runs the five incident agents, and recalculates the priority queue. Stable RESQ-DEMO event IDs make the operation idempotent: running the same scenario again updates the same alerts and reuses their linked incidents and demo inventory.
+
+Every demo alert title, incident description/location, resource name/location, and raw provider payload is marked **SIMULATED**. The samples are invented for this product demonstration; they are not current GDACS/USGS reports, measured populations, verified depots, or live hazard conditions. The demo does not call public feeds.
+
+### Run it from the dashboard
+
+1. Start the backend and frontend using the Quick Start instructions above.
+2. The dispatch setting defaults to **MANUAL**. To demonstrate virtual automatic assignments, open **Dispatch Simulation**, switch the mode to **AUTO**, keep the emergency pause switch off, and save. The default threshold is High; the sample incidents are designed to qualify.
+3. Return to **Operational Overview**, choose Cyclone, Flood, or Earthquake, then select **Run demo scenario**.
+4. Watch the alerts, map, severity/priority queue, resource counts, agent activity and Active Rescue Operations panel update through the live event stream. The panel provides Complete and (for AUTO deployments) Recall actions.
+5. Switch back to **MANUAL** after the demonstration if you do not want subsequent qualifying reports to create virtual assignments.
+
+### API and command-line options
+
+Run one scenario through the same API used by the dashboard:
+
+~~~bash
+curl -X POST http://127.0.0.1:8000/api/demo/simulate -H 'Content-Type: application/json' -d '{"scenario":"cyclone"}'
+~~~
+
+The accepted scenario values are cyclone, flood, and earthquake. The response reports created/updated alert counts, incident IDs, agent-run count, priority order, dispatch mode, virtual assignment count, and the simulation disclaimer. Unknown scenarios return HTTP 422.
+
+To seed the configured local SQLite database without opening the browser, run this from the repository root:
+
+~~~bash
+python backend/scripts/seed_demo.py cyclone
+python backend/scripts/seed_demo.py flood
+python backend/scripts/seed_demo.py earthquake
+~~~
+
+The script runs the same service as the API. It initializes migrations first, but it does not clear the database. Demo records remain in the selected database and should only be seeded into a development/demo database. To run it in AUTO mode, first set the dispatch mode to AUTO through the API or UI.
+
+### Architecture at a glance
+
+~~~text
+GDACS / USGS public feeds ----\
+                               > Alert adapters -> SQLite alert register -> operator review
+Dashboard demo scenario ------/                                      |
+                                                                      v
+                                                         Incident promotion / creation
+                                                                      |
+                                      +-------------------------------+------------------+
+                                      v                                                  v
+                              Severity rules (0-100)                            Five named agents
+                                      |                                      (LLM optional; rules fallback)
+                                      v                                                  |
+                           Deterministic priority queue <-------------------------------+
+                                      |
+                                      v
+                         Resource matching + shortfall report
+                                      |
+                         +------------+-------------+
+                         |                          |
+                      MANUAL                       AUTO
+                 operator decisions       threshold + pause checks
+                         |                          |
+                         v                          v
+                  response plan             transactional virtual
+                    approval                 assignment + audit log
+                         +------------+-------------+
+                                      |
+                                      v
+                         SQLite records / audit history
+                                      |
+                                      v
+                     EventHub -> SSE /api/events/stream
+                                      |
+                                      v
+                    React 19 + Leaflet live dashboard
+~~~
+
+### Incident agent responsibilities
+
+| Agent | Responsibility | Safety boundary |
+|---|---|---|
+| DetectionAgent | Summarizes incident and linked alert evidence for operator review | Does not create or edit incidents |
+| SeverityAgent | Reports deterministic score and factor breakdown | LLM text cannot change the numeric score or severity level |
+| PrioritizationAgent | Explains deterministic severity → people → time → ID order | LLM cannot reorder the priority queue |
+| DispatchAgent | Explains resource matches, quantities and shortfalls | LLM cannot choose resource IDs or override stock checks |
+| CoordinatorAgent | Summarizes agent findings and next operator step | Advisory only; cannot approve, dispatch, or change stored records |
+
+The existing external-alert assessment workflow is a separate explainable feed-quality pipeline. The incident-level agent pipeline is the five-agent sequence above. LLM use remains disabled by default; without credentials, all workflows use deterministic rules.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| RELIEF_DATABASE_PATH | backend/data/relief.db | Override the SQLite database file |
+| RESQ_ALERT_AUTO_SYNC_ENABLED | true | Enable/disable background public-feed synchronization |
+| RESQ_GDACS_SYNC_INTERVAL_SECONDS | 360 | GDACS refresh interval; minimum 30 seconds |
+| RESQ_USGS_SYNC_INTERVAL_SECONDS | 60 | USGS refresh interval; minimum 30 seconds |
+| LLM_ENABLED | false | Explicitly opt in to provider calls |
+| LLM_BASE_URL | https://api.openai.com/v1 | OpenAI-compatible API base URL |
+| LLM_API_KEY | empty | Provider key; keep it in the process environment, never in Git |
+| LLM_MODEL | gpt-4o-mini | Provider model identifier |
+| LLM_TIMEOUT_SECONDS | 8 | Per-request timeout |
+
+No new runtime dependency is required for demo mode, SSE or visualization. The event stream uses FastAPI StreamingResponse, and the dashboard chart uses SVG.
+
+### Spec-to-code mapping
+
+| Project requirement | Implementing files |
+|---|---|
+| 1. Multi-agent emergency detection, severity analysis and response coordination | backend/app/agent_orchestrator.py, backend/app/agents/, backend/app/llm/, backend/app/severity.py, backend/app/routers/incidents.py, frontend/src/pages/IncidentDetails.jsx |
+| 2. Prioritize affected areas by urgency and people at risk | backend/app/prioritization.py, backend/app/routers/incidents.py, backend/app/schemas.py, frontend/src/components/dashboard/AreaPriorityTable.jsx, frontend/src/components/dashboard/PriorityQueueTable.jsx |
+| 3. Coordinate rescue teams, ambulances, shelters and supplies through dispatch workflows | backend/app/recommendations.py, backend/app/auto_dispatch_service.py, backend/app/auto_dispatch_repository.py, backend/app/response_plan_repository.py, backend/app/routers/dispatch.py, backend/app/routers/response_plans.py, frontend/src/pages/ResponsePlans.jsx |
+| 4. Real-time alerts, disaster locations, resource availability and operations | backend/app/event_hub.py, backend/app/routers/events.py, backend/app/routers/alerts.py, frontend/src/context/DataContext.jsx, frontend/src/components/incidents/IncidentMapPanel.jsx, frontend/src/components/dashboard/DashboardLivePanels.jsx, frontend/src/components/layout/Topbar.jsx |
+| One-click reproducible demonstration | backend/app/demo_service.py, backend/app/demo_schemas.py, backend/app/routers/demo.py, backend/scripts/seed_demo.py, frontend/src/services/demoService.js, frontend/src/pages/Dashboard.jsx |
+
+### Honest limitations
+
+- This project does **not** predict disasters. It ingests public provider reports and manually entered reports, then applies explainable prototype rules and agent summaries.
+- Severity and affected-person figures are not calibrated forecasts or official emergency guidance. Demo counts and locations are synthetic.
+- AUTO mode creates database assignments and virtual reservations only. No emergency-service API, SMS, real responder, vehicle, hospital inventory or physical stock is connected.
+- Distances are Haversine straight-line estimates, not road routes or ETAs. Resource locations and quantities are locally registered, not independently verified.
+- The optional LLM is not required, can fail over to deterministic rules, and cannot override the deterministic scores, priority order, allocation checks or operator controls.
+- The prototype does not yet provide authentication or role-based access control. Do not use it for real emergency operations.
+
+### Automated checks
+
+The GitHub Actions workflow .github/workflows/backend-tests.yml runs the backend pytest suite and the frontend production build (npm ci followed by npm run build) for pull requests to main. Latest GitHub Actions run: **233 pytest tests passed (13 warnings)**, and the frontend production build passed.
+

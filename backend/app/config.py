@@ -18,7 +18,7 @@ APP_DESCRIPTION = (
     "Uses manually entered reports and read-only public alerts from GDACS and USGS. "
     "It is NOT a real emergency system, does not connect to emergency services "
     "or dispatch systems, and does not predict disasters. A human operator "
-    "must review imported alerts and approve or reject every recommendation."
+    "must review external alerts before promotion. MANUAL mode requires operator decisions; AUTO mode creates virtual assignments only."
 )
 
 # SQLite database file (project-relative by default; overridable via RELIEF_DATABASE_PATH).
