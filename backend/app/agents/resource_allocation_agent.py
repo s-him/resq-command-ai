@@ -5,13 +5,13 @@ from typing import Any
 
 from app import recommendations
 from app.agents.agent_result import AgentResult
-from app.agents.agent_schemas import DispatchNarrative
+from app.agents.agent_schemas import AllocationNarrative
 from app.agents.base import AgentBase
 from app.schemas import Resource
 
 
-class DispatchAgent(AgentBase):
-    name = "DispatchAgent"
+class ResourceAllocationAgent(AgentBase):
+    name = "ResourceAllocationAgent"
 
     def run(self, context: dict[str, Any]) -> AgentResult:
         started = perf_counter()
@@ -27,7 +27,7 @@ class DispatchAgent(AgentBase):
         unavailable_json = [item.model_dump(mode="json") for item in unavailable]
         insufficient_json = [item.model_dump(mode="json") for item in insufficient]
         narrative, fallback = self.ask_llm(
-            response_model=DispatchNarrative,
+            response_model=AllocationNarrative,
             system_prompt=(
                 "Add concise operational context to the supplied resource proposal. "
                 "Do not change resource IDs, quantities, availability, distances, or "

@@ -67,6 +67,9 @@ LLM use is disabled by default and configured in the backend process environment
 
 ## Dispatch mode controls
 
+AUTO is disabled in the interface unless the backend allows it
+(`RESQ_ALLOW_AUTO_DISPATCH=true`).
+
 The Dispatch Simulation page exposes the database-backed MANUAL/AUTO setting,
 the minimum severity threshold and the emergency pause switch. MANUAL remains
 the default. AUTO plans show their linked incident/resource assignments and

@@ -138,7 +138,7 @@ def test_result_is_labelled_as_prototype_estimate():
 
     assert "prototype" in result.disclaimer.lower()
     assert "not real emergency guidance" in result.disclaimer.lower()
-    assert result.rules_version == RULES_VERSION == "demo-rules-v2"
+    assert result.rules_version == RULES_VERSION == "demo-rules-v3"
 
 
 

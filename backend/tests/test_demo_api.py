@@ -51,7 +51,8 @@ def test_demo_scenario_creates_labeled_records_and_is_idempotent(client, scenari
     assert len(client.get("/api/incidents").json()) == 3
 
 
-def test_demo_auto_mode_runs_agents_and_creates_virtual_dispatch(client):
+def test_demo_auto_mode_runs_agents_and_creates_virtual_dispatch(client, monkeypatch):
+    monkeypatch.setenv("RESQ_ALLOW_AUTO_DISPATCH", "true")
     settings = client.patch("/api/dispatch/settings", json={"mode": "auto"})
 
     assert settings.status_code == 200

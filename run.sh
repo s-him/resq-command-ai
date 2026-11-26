@@ -17,7 +17,7 @@ done
 
 if [[ ! -f "$BACKEND_DIR/requirements.txt" || ! -f "$FRONTEND_DIR/package.json" ]]; then
   echo "ERROR: backend/requirements.txt or frontend/package.json not found."
-  echo "Run this script from inside the cloned miniprojecthing repository."
+  echo "Run this script from inside the cloned resq-command-ai repository."
   exit 1
 fi
 

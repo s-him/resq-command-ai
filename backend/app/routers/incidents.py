@@ -23,6 +23,7 @@ from app import (
 )
 from app.agent_trace_schemas import AgentTraceList, AgentTraceRun
 from app.event_hub import publish_event
+from app.incident_workflow import start_incident_workflow
 from app.schemas import (
     Incident,
     IncidentCreate,
@@ -42,15 +43,14 @@ router = APIRouter(prefix="/api/incidents", tags=["Incidents"])
 @router.post("", response_model=Incident, status_code=status.HTTP_201_CREATED)
 def create_incident(incident: IncidentCreate) -> Incident:
     """Create an incident report. It is saved with a new ID, status "open",
-    and a rule-based severity score (an unvalidated prototype estimate).
+    and a rule-based severity score (an unvalidated prototype estimate). The
+    agent workflow then leaves a pending recommendation for operator review.
 
     By the time this function runs, FastAPI has already validated the request
     body against IncidentCreate, so `incident` is guaranteed to be valid.
     """
     created = incident_repository.create_incident(incident)
-    from app.auto_dispatch_service import try_auto_dispatch_incident
-
-    try_auto_dispatch_incident(created.id)
+    start_incident_workflow(created.id)
     publish_event("incidents.updated", {"incident_id": created.id, "action": "created"})
     return created
 

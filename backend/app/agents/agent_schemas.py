@@ -11,7 +11,7 @@ class StrictAgentSchema(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
-class DetectionSuggestion(StrictAgentSchema):
+class MonitoringSuggestion(StrictAgentSchema):
     """A draft classification only; never mutates or confirms the incident."""
 
     actionable_candidate: bool
@@ -37,14 +37,14 @@ class PriorityNarrative(StrictAgentSchema):
     caveats: list[str] = Field(default_factory=list, max_length=8)
 
 
-class DispatchNarrative(StrictAgentSchema):
+class AllocationNarrative(StrictAgentSchema):
     """Narrative supplement only; allocations are built by the deterministic matcher."""
 
     operational_note: str = Field(min_length=5, max_length=1000)
     cautions: list[str] = Field(default_factory=list, max_length=8)
 
 
-class CoordinatorNarrative(StrictAgentSchema):
+class NotificationNarrative(StrictAgentSchema):
     """Final plain-language summary of already-computed, validated agent outputs."""
 
     summary: str = Field(min_length=5, max_length=1200)

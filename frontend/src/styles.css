@@ -1780,6 +1780,14 @@ h4 {
   border-color: var(--accent-teal);
   color: var(--accent-teal);
 }
+.timeline-dot-amber {
+  border-color: #d97706;
+  color: #d97706;
+}
+.timeline-dot-slate {
+  border-color: #64748b;
+  color: #64748b;
+}
 
 .timeline-card {
   border: 1px solid var(--border-color);

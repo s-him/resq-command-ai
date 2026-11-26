@@ -3,10 +3,18 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app import auto_dispatch_repository, dispatch_settings_repository, incident_repository
 from app import recommendations as recommendation_builder
 from app.dispatch_schemas import DispatchMode, DispatchSettingsUpdate
 from app import resource_repository
+
+
+@pytest.fixture(autouse=True)
+def allow_auto_dispatch(monkeypatch):
+    """AUTO is off by default; these tests exercise it explicitly."""
+    monkeypatch.setenv("RESQ_ALLOW_AUTO_DISPATCH", "true")
 
 
 def set_dispatch_mode(client, *, mode="auto", paused=False, minimum_severity="High"):
@@ -76,7 +84,7 @@ def test_dispatch_mode_is_persisted_and_defaults_to_manual(client):
 
     assert list_plans(client) == []
     trace = client.get(f"/api/incidents/{incident['id']}/agent-trace").json()
-    assert trace["count"] == 0
+    assert trace["count"] == 1  # advisory intake run only; nothing is dispatched
 
 
 def test_auto_dispatch_runs_agents_and_creates_deployed_assignment(client):
@@ -122,7 +130,7 @@ def test_auto_dispatch_respects_critical_only_threshold(client):
 
     assert incident["severity"]["level"] == "High"
     assert list_plans(client) == []
-    assert client.get(f"/api/incidents/{incident['id']}/agent-trace").json()["count"] == 0
+    assert client.get(f"/api/incidents/{incident['id']}/agent-trace").json()["count"] == 1
 
 
 def test_emergency_pause_blocks_auto_dispatch_until_unpaused(client):
@@ -131,7 +139,7 @@ def test_emergency_pause_blocks_auto_dispatch_until_unpaused(client):
     incident = create_eligible_incident(client, suffix="PAUSED")
 
     assert list_plans(client) == []
-    assert client.get(f"/api/incidents/{incident['id']}/agent-trace").json()["count"] == 0
+    assert client.get(f"/api/incidents/{incident['id']}/agent-trace").json()["count"] == 1
 
     updated = client.patch("/api/dispatch/settings", json={"paused": False})
     assert updated.status_code == 200

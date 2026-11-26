@@ -16,6 +16,8 @@ from app.alert_schemas import (
 )
 from app.schemas import IncidentCreate
 from app.event_hub import publish_event
+from app.incident_workflow import start_incident_workflow
+from app import activity_service
 
 router = APIRouter(prefix="/api/alerts", tags=["External Alerts"])
 
@@ -41,7 +43,11 @@ def list_external_alerts(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
-    """List imported alerts with optional source, hazard, level and review filters."""
+    """List imported alerts with optional source, hazard, level and review filters.
+
+    The response also carries the prototype's own active alerts and recent
+    action history. The filters apply to imported alerts only.
+    """
     alerts, total_count = alert_repository.list_alerts(
         source=source.value if source else None,
         hazard_type=hazard_type.lower() if hazard_type else None,
@@ -56,6 +62,8 @@ def list_external_alerts(
         "limit": limit,
         "offset": offset,
         "alerts": alerts,
+        "active_alerts": activity_service.list_active_alerts(),
+        "recent_activity": activity_service.list_activity(limit=20),
         "disclaimer": alert_service.DISCLAIMER,
     }
 
@@ -108,9 +116,7 @@ def promote_reviewed_alert(alert_id: int, incident_data: IncidentCreate) -> dict
 
     alert = alert_repository.get_alert_by_id(alert_id)
     incident = incident_repository.get_incident_by_id(incident_id)
-    from app.auto_dispatch_service import try_auto_dispatch_incident
-
-    try_auto_dispatch_incident(incident_id)
+    start_incident_workflow(incident_id)
     publish_event("incidents.updated", {"incident_id": incident_id, "action": "promoted"})
     publish_event("alerts.updated", {"alert_id": alert_id, "action": "promoted"})
     return {
@@ -119,8 +125,9 @@ def promote_reviewed_alert(alert_id: int, incident_data: IncidentCreate) -> dict
         "message": (
             f"Reviewed external alert #{alert_id} was linked to incident "
             f"#{incident_id}. The incident is now included in the normal priority "
-            "and resource-recommendation workflows. If AUTO mode is enabled and the " 
-            "incident meets its threshold, a simulated assignment may also be created."
+            "and resource-recommendation workflows. A pending recommendation is "
+            "prepared for operator review. If AUTO simulation is allowed and enabled, "
+            "a simulated assignment may be created instead."
         ),
         "disclaimer": (
             "The incident fields were supplied or confirmed by an operator. "

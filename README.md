@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, manual and automatic virtual-dispatch workflows with an audit ledger, a Server-Sent Events update stream, and repeatable SIMULATED demo scenarios, versioned database migrations (`001`–`013`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, manual and automatic virtual-dispatch workflows with an audit ledger, a Server-Sent Events update stream, and repeatable SIMULATED demo scenarios, versioned database migrations (`001`–`014`), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -36,7 +36,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001-013)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-014)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -70,6 +70,13 @@ This repository contains a full-stack academic decision-support prototype:
 ```
 
 ---
+
+## Project documents
+
+- [Requirement traceability (FR-1–6, NFR-1–5)](docs/TRACEABILITY.md)
+- [Test report](docs/TEST_REPORT.md)
+- [Usability review form](docs/USABILITY_REVIEW.md)
+- [Final report draft](docs/FINAL_REPORT.md)
 
 ## Prerequisites
 
@@ -143,7 +150,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`013` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields; existing incidents are rescored once under the new rules version without losing their original incident data.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`014` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields; existing incidents are rescored once under the new rules version without losing their original incident data.
 
 ---
 
@@ -383,13 +390,15 @@ Operator notes are prototype audit entries and do not prove that responders atte
 
 ## Incident-level AI-assisted agent pipeline (Phase 1)
 
-A separate incident-level workflow now runs five named agents in order: **DetectionAgent**, **SeverityAgent**, **PrioritizationAgent**, **DispatchAgent**, and **CoordinatorAgent**. This does not replace the existing GDACS/USGS external-alert assessment endpoint; that original five-specialist feed assessment remains deterministic.
+A separate incident-level workflow now runs five named agents in order: **MonitoringAgent**, **SeverityAgent**, **PrioritizationAgent**, **ResourceAllocationAgent**, and **NotificationAgent**. This does not replace the existing GDACS/USGS external-alert assessment endpoint; that original five-specialist feed assessment remains deterministic.
 
-- **DetectionAgent** reviews an existing manual or promoted incident and, when available, its linked normalized GDACS/USGS alert. It can draft a hazard classification, description, location, and people-at-risk estimate for an operator to verify. It never creates or edits an incident.
+- **MonitoringAgent** normalises each incoming report before it is saved (required fields are validated by the API schema and the database assigns the ID). In the pipeline it reviews the manual or promoted incident and, when available, its linked normalized GDACS/USGS alert. It can draft a hazard classification, description, location, and people-at-risk estimate for an operator to verify. It never creates or edits an incident.
 - **SeverityAgent** reports the existing deterministic severity score and factor breakdown. An enabled LLM may add explanatory text, but cannot change the numeric score or level.
 - **PrioritizationAgent** uses the deterministic score → people affected → report time → ID ordering. An LLM may add wording but cannot reorder the queue.
-- **DispatchAgent** calls the existing nearest/available-resource matcher and reports its assignments and shortfalls. LLM text cannot change resource IDs or quantities.
-- **CoordinatorAgent** summarizes the validated outputs and states the next human review step.
+- **ResourceAllocationAgent** calls the existing nearest/available-resource matcher and reports its assignments and shortfalls. LLM text cannot change resource IDs or quantities.
+- **NotificationAgent** prepares the high-severity alert, summarizes the validated outputs and states the next human review step. Database triggers record every action in `action_log`.
+
+Every new report (manual, promoted or demo) starts this pipeline and then gets a **pending** recommendation. Nothing is approved or reserved without an operator.
 
 Each run stores input summary, agent output, mode (llm or rules), rationale, confidence field, per-agent duration, total duration, and generation time. The confidence field is a prototype display value, not a calibrated probability.
 
@@ -449,7 +458,7 @@ Every provider response must be JSON and pass its agent's Pydantic schema. A dis
 
 ## Severity rules v2 and affected-area priority (Phase 2)
 
-Severity remains a transparent **0–100 prototype estimate**, not a calibrated probability or official emergency instruction. Rules version `demo-rules-v2` adds four evidence dimensions to the existing people/help factors:
+Severity remains a transparent **0–100 prototype estimate**, not a calibrated probability or official emergency instruction. Rules version `demo-rules-v3` adds four evidence dimensions to the existing people/help factors:
 
 | Factor | Maximum | Rule summary |
 |---|---:|---|
@@ -470,6 +479,8 @@ Older incidents with a previous or missing rules version are recalculated at sta
 ---
 
 ## Automatic dispatch simulation (Phase 3)
+
+> **Off by default.** The synopsis requires human approval before any simulated dispatch, so AUTO can only be selected when the backend is started with `RESQ_ALLOW_AUTO_DISPATCH=true`. A previously saved AUTO setting has no effect without it.
 
 The operator-controlled setting is stored in SQLite and defaults to **MANUAL**.
 In MANUAL mode, recommendations and response plans continue to require the
@@ -548,7 +559,7 @@ Every demo alert title, incident description/location, resource name/location, a
 ### Run it from the dashboard
 
 1. Start the backend and frontend using the Quick Start instructions above.
-2. The dispatch setting defaults to **MANUAL**. To demonstrate virtual automatic assignments, open **Dispatch Simulation**, switch the mode to **AUTO**, keep the emergency pause switch off, and save. The default threshold is High; the sample incidents are designed to qualify.
+2. The dispatch setting defaults to **MANUAL**, which is what the project demonstration should use. Only to show the optional AUTO simulation, start the backend with `RESQ_ALLOW_AUTO_DISPATCH=true`, then open **Dispatch Simulation**, switch the mode to **AUTO**, keep the emergency pause switch off, and save. The default threshold is High; the sample incidents are designed to qualify.
 3. Return to **Operational Overview**, choose Cyclone, Flood, or Earthquake, then select **Run demo scenario**.
 4. Watch the alerts, map, severity/priority queue, resource counts, agent activity and Active Rescue Operations panel update through the live event stream. The panel provides Complete and (for AUTO deployments) Recall actions.
 5. Switch back to **MANUAL** after the demonstration if you do not want subsequent qualifying reports to create virtual assignments.
@@ -616,11 +627,11 @@ Dashboard demo scenario ------/                                      |
 
 | Agent | Responsibility | Safety boundary |
 |---|---|---|
-| DetectionAgent | Summarizes incident and linked alert evidence for operator review | Does not create or edit incidents |
+| MonitoringAgent | Summarizes incident and linked alert evidence for operator review | Does not create or edit incidents |
 | SeverityAgent | Reports deterministic score and factor breakdown | LLM text cannot change the numeric score or severity level |
 | PrioritizationAgent | Explains deterministic severity → people → time → ID order | LLM cannot reorder the priority queue |
-| DispatchAgent | Explains resource matches, quantities and shortfalls | LLM cannot choose resource IDs or override stock checks |
-| CoordinatorAgent | Summarizes agent findings and next operator step | Advisory only; cannot approve, dispatch, or change stored records |
+| ResourceAllocationAgent | Explains resource matches, quantities and shortfalls | LLM cannot choose resource IDs or override stock checks |
+| NotificationAgent | Summarizes agent findings and next operator step | Advisory only; cannot approve, dispatch, or change stored records |
 
 The existing external-alert assessment workflow is a separate explainable feed-quality pipeline. The incident-level agent pipeline is the five-agent sequence above. LLM use remains disabled by default; without credentials, all workflows use deterministic rules.
 
@@ -630,6 +641,7 @@ The existing external-alert assessment workflow is a separate explainable feed-q
 |---|---|---|
 | RELIEF_DATABASE_PATH | backend/data/relief.db | Override the SQLite database file |
 | RESQ_ALERT_AUTO_SYNC_ENABLED | true | Enable/disable background public-feed synchronization |
+| RESQ_ALLOW_AUTO_DISPATCH | false | Allow the optional AUTO simulation, which skips human review |
 | RESQ_GDACS_SYNC_INTERVAL_SECONDS | 360 | GDACS refresh interval; minimum 30 seconds |
 | RESQ_USGS_SYNC_INTERVAL_SECONDS | 60 | USGS refresh interval; minimum 30 seconds |
 | LLM_ENABLED | false | Explicitly opt in to provider calls |
@@ -661,5 +673,5 @@ No new runtime dependency is required for demo mode, SSE or visualization. The e
 
 ### Automated checks
 
-The GitHub Actions workflow .github/workflows/backend-tests.yml runs the backend pytest suite and the frontend production build (npm ci followed by npm run build) for pull requests to main. Latest GitHub Actions run: **233 pytest tests passed (13 warnings)**, and the frontend production build passed.
+The GitHub Actions workflow .github/workflows/backend-tests.yml runs the backend pytest suite and the frontend production build (npm ci followed by npm run build) for pull requests to main. Recorded local results are in [docs/TEST_REPORT.md](docs/TEST_REPORT.md).
 

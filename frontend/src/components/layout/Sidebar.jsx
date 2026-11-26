@@ -33,7 +33,7 @@ const NAV_GROUPS = [
     heading: "MONITORING",
     items: [
       { id: "alerts", label: "Alert Intelligence", path: "#/alerts", icon: "alert" },
-      { id: "history", label: "Activity History", path: "#/history", icon: "history", countKey: "actions" },
+      { id: "history", label: "Activity History", path: "#/history", icon: "history" },
     ],
   },
 ];
@@ -45,13 +45,12 @@ export default function Sidebar({
   onToggleCollapse,
   onCloseMobile,
 }) {
-  const { health, incidents, resources, recommendations, actions } = useData();
+  const { health, incidents, resources, recommendations } = useData();
 
   const counts = {
     incidents: incidents.data.length,
     resources: resources.data.length,
     pendingRecs: recommendations.filter((r) => r.status === "pending").length,
-    actions: actions.length,
   };
 
   const activeNavId = route.name === "incident" ? "incidents" : route.name;

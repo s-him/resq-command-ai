@@ -143,7 +143,7 @@ def test_indexes_and_schema_migrations_exist_after_init(client):
         "idx_recommendation_items_recommendation_id",
         "idx_recommendation_items_resource_id",
     }.issubset(index_names)
-    assert applied == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
+    assert applied == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
 
 # ---------- Upgrading a pre-upgrade legacy database ----------
@@ -265,7 +265,7 @@ def test_old_rules_version_is_recalculated(client):
 
     assert incident_repository.fill_missing_severity() == 1
     updated = client.get(f"/api/incidents/{incident_id}").json()
-    assert updated["severity"]["rules_version"] == "demo-rules-v2"
+    assert updated["severity"]["rules_version"] == "demo-rules-v3"
     assert updated["severity"]["score"] > 1
     assert updated["severity"]["factors"][3]["points"] == 12
 
@@ -318,7 +318,7 @@ def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     first = database.init_database()
     second = database.init_database()
 
-    assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     assert second == []
 
     connection = database.get_connection()
@@ -327,7 +327,7 @@ def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     finally:
         connection.close()
 
-    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 
 
 # ---------- Invalid legacy rows halt safely without losing data ----------

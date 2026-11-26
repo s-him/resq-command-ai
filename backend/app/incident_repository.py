@@ -9,6 +9,7 @@ import json
 import sqlite3
 
 from app import severity
+from app.agents.monitoring_agent import MonitoringAgent
 from app.database import get_connection
 from app.schemas import (
     HelpType,
@@ -34,8 +35,33 @@ def _row_to_severity(row: sqlite3.Row) -> SeverityAssessment:
     )
 
 
+def _current_severity(row: sqlite3.Row) -> SeverityAssessment:
+    """Score a saved incident as of now, using its stored report fields."""
+    return severity.calculate_severity(
+        row["people_affected"],
+        [HelpType(value) for value in json.loads(row["help_needed"])],
+        hazard_type=row["hazard_type"],
+        description=row["description"],
+        location=row["location"],
+        reported_at=row["event_at"] or row["reported_at"],
+        hazard_magnitude=row["hazard_magnitude"],
+        hazard_magnitude_unit=row["hazard_magnitude_unit"],
+        provider_alert_level=row["provider_alert_level"],
+    )
+
+
 def _row_to_incident(row: sqlite3.Row) -> Incident:
-    """Convert one database row into an Incident object."""
+    """Convert one database row into an Incident object.
+
+    Open incidents are re-scored every time they are read, because the recency
+    factor depends on how old the report is now. Resolved and closed incidents
+    keep the last saved score.
+    """
+    assessment = (
+        _current_severity(row)
+        if row["status"] == IncidentStatus.OPEN.value
+        else _row_to_severity(row)
+    )
     return Incident(
         id=row["id"],
         hazard_type=row["hazard_type"],
@@ -47,7 +73,7 @@ def _row_to_incident(row: sqlite3.Row) -> Incident:
         help_needed=json.loads(row["help_needed"]),  # JSON text -> Python list
         status=row["status"],
         created_at=row["created_at"],
-        severity=_row_to_severity(row),
+        severity=assessment,
         latitude=row["latitude"],
         longitude=row["longitude"],
         hazard_magnitude=row["hazard_magnitude"],
@@ -69,6 +95,7 @@ def _severity_values(assessment: SeverityAssessment) -> tuple:
 
 def create_incident(data: IncidentCreate) -> Incident:
     """Score a new incident, save it with status "open", and return it (with its new ID)."""
+    data = MonitoringAgent.normalize_report(data)
     assessment = severity.calculate_severity(
         data.people_affected,
         data.help_needed,
@@ -124,6 +151,20 @@ def create_incident(data: IncidentCreate) -> Incident:
         raise
     finally:
         connection.close()
+
+
+def save_current_severity(connection: sqlite3.Connection, incident_id: int) -> None:
+    """Freeze the current score just before an incident stops being open."""
+    row = connection.execute("SELECT * FROM incidents WHERE id = ?", (incident_id,)).fetchone()
+    connection.execute(
+        """
+        UPDATE incidents
+        SET severity_score = ?, severity_level = ?, severity_explanation = ?,
+            severity_factors = ?, severity_rules_version = ?
+        WHERE id = ?
+        """,
+        (*_severity_values(_current_severity(row)), incident_id),
+    )
 
 
 def list_incidents() -> list[Incident]:

@@ -67,7 +67,9 @@ def decide_on_recommendation(
         history_entry=history_entry,
         message=(
             f"Prototype decision '{payload.decision.value}' recorded. "
-            "Resource quantities were not changed and no dispatch was triggered."
+            "Resource quantities were not changed and no dispatch was triggered. "
+            "Approval does not reserve stock; stock is reserved only when a response "
+            "plan is approved."
         ),
     )
 

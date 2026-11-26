@@ -143,9 +143,9 @@ def test_recommendation_is_saved_in_sqlite(client, temp_database):
     created = client.post(f"/api/incidents/{incident_id}/recommendation").json()
 
     saved = recommendation_repository.list_recommendations_for_incident(incident_id)
-    assert len(saved) == 1
-    assert saved[0].id == created["id"]
-    assert saved[0].status.value == "pending"
+    assert len(saved) == 2  # intake workflow + this request
+    assert saved[-1].id == created["id"]
+    assert saved[-1].status.value == "pending"
 
     connection = sqlite3.connect(temp_database)
     row = connection.execute(

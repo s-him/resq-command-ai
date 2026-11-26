@@ -88,8 +88,9 @@ def test_decision_is_visible_on_get_recommendation_and_incident_history(client):
 
     history = client.get(f"/api/incidents/{incident_id}/history").json()
     assert history["incident_id"] == incident_id
-    assert len(history["recommendations"]) == 1
-    assert history["recommendations"][0]["status"] == "approved"
+    # The first entry is the pending recommendation prepared at intake.
+    assert len(history["recommendations"]) == 2
+    assert history["recommendations"][-1]["status"] == "approved"
     assert len(history["action_history"]) == 1
     assert history["action_history"][0]["recommendation_id"] == rec_id
     assert history["action_history"][0]["decision"] == "approved"

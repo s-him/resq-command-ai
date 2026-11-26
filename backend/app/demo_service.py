@@ -16,6 +16,8 @@ from app import (
     dispatch_settings_repository,
     incident_repository,
     prioritization,
+    recommendation_repository,
+    recommendations,
     resource_repository,
 )
 from app.alert_sources import NormalizedAlert
@@ -255,6 +257,20 @@ def _ensure_demo_resources(scenario: str, definition: dict[str, Any]) -> int:
     return created
 
 
+def _create_pending_recommendation(incident_id: int) -> None:
+    incident = incident_repository.get_incident_by_id(incident_id)
+    items, unavailable, insufficient, summary = recommendations.build_recommendation(
+        incident, resource_repository.list_available_resources()
+    )
+    recommendation_repository.create_recommendation(
+        incident_id=incident_id,
+        items=items,
+        unavailable_needs=unavailable,
+        insufficient_needs=insufficient,
+        summary=summary,
+    )
+
+
 def run_demo_scenario(scenario: str) -> dict[str, Any]:
     """Create/update one synthetic alert scenario and run the normal incident workflow."""
     if scenario not in _SCENARIOS:
@@ -331,6 +347,9 @@ def run_demo_scenario(scenario: str) -> dict[str, Any]:
     for incident_id in incident_ids:
         auto_result = auto_dispatch_service.try_auto_dispatch_incident(incident_id)
         reused = False
+        needs_recommendation = not recommendation_repository.list_recommendations_for_incident(
+            incident_id
+        )
         if auto_result and auto_result.get("attempted"):
             agent_runs += 1  # AUTO already ran the five-agent pipeline.
             result = auto_result
@@ -341,6 +360,8 @@ def run_demo_scenario(scenario: str) -> dict[str, Any]:
                 "agents.completed",
                 {"incident_id": incident_id, "run_id": agent_run.get("id"), "source": "demo"},
             )
+            if needs_recommendation:
+                _create_pending_recommendation(incident_id)
             active_quantities = auto_dispatch_repository.get_active_deployed_quantities(incident_id)
             reused = settings["mode"] == "auto" and any(active_quantities.values())
             result = {
@@ -418,8 +439,8 @@ def run_demo_scenario(scenario: str) -> dict[str, Any]:
     else:
         message = (
             f"SIMULATED {scenario} scenario created {alerts_created} alert(s) and "
-            f"{incidents_created} incident(s). Dispatch mode is MANUAL; switch to AUTO "
-            "to demonstrate virtual automatic assignments."
+            f"{incidents_created} incident(s). New recommendations are waiting for "
+            "operator approval."
         )
 
     return {

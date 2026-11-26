@@ -17,6 +17,7 @@ class DispatchSeverityThreshold(str, Enum):
 
 
 class DispatchSettings(BaseModel):
+    auto_allowed: bool = False
     mode: DispatchMode
     paused: bool
     minimum_severity: DispatchSeverityThreshold
