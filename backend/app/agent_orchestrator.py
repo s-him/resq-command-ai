@@ -6,9 +6,9 @@ from typing import Any
 from app import alert_repository, incident_repository, resource_repository
 from app.agents import (
     AgentResult,
-    CoordinatorAgent,
-    DetectionAgent,
-    DispatchAgent,
+    NotificationAgent,
+    MonitoringAgent,
+    ResourceAllocationAgent,
     PrioritizationAgent,
     SeverityAgent,
 )
@@ -16,7 +16,7 @@ from app.agent_trace_repository import save_agent_trace
 from app.llm.client import LLMClient
 from app.schemas import Incident, Resource
 
-ENGINE_VERSION = "incident-agents-v1"
+ENGINE_VERSION = "incident-agents-v2"
 
 
 def _dump_incident(item: Incident) -> dict[str, Any]:
@@ -55,19 +55,19 @@ def run_incident_pipeline(
     }
 
     agents = [
-        DetectionAgent(shared_client),
+        MonitoringAgent(shared_client),
         SeverityAgent(shared_client),
         PrioritizationAgent(shared_client),
-        DispatchAgent(shared_client),
-        CoordinatorAgent(shared_client),
+        ResourceAllocationAgent(shared_client),
+        NotificationAgent(shared_client),
     ]
     results: list[AgentResult] = []
     for agent in agents:
         agent_context = {**context, "agent_results": list(results)}
         results.append(agent.run(agent_context))
 
-    coordinator_output = results[-1].output
-    summary = str(coordinator_output["summary"])
+    notification_output = results[-1].output
+    summary = str(notification_output["summary"])
     duration_ms = max(0, round((perf_counter() - started) * 1000))
     inputs_summary = {
         "incident_id": incident.id,

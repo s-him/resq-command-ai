@@ -54,6 +54,14 @@ USGS_SYNC_INTERVAL_SECONDS = _read_positive_int(
 )
 
 
+def auto_dispatch_allowed() -> bool:
+    """AUTO simulation skips human review, so it is off unless explicitly enabled.
+
+    Read at call time so the setting can be changed in tests.
+    """
+    return _read_bool("RESQ_ALLOW_AUTO_DISPATCH", False)
+
+
 def _read_positive_float(name: str, default: float, minimum: float = 0.1) -> float:
     """Read a positive float; malformed or unsafe values use the default."""
     try:

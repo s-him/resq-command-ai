@@ -11,6 +11,7 @@ from app import (
     recommendations,
     resource_repository,
 )
+from app.config import auto_dispatch_allowed
 from app.schemas import InsufficientNeed, UnavailableNeed
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ def auto_dispatch_incident(
 ) -> dict[str, Any]:
     """Run agents, calculate a recommendation and atomically reserve auto assignments."""
     settings = dispatch_settings_repository.get_dispatch_settings()
-    if settings["mode"] != "auto":
+    if settings["mode"] != "auto" or not auto_dispatch_allowed():
         return {
             "incident_id": incident_id,
             "attempted": False,

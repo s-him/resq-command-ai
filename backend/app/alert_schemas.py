@@ -120,12 +120,44 @@ class AlertPromotionResponse(BaseModel):
     disclaimer: str
 
 
+class ActiveAlert(BaseModel):
+    """An alert raised by this prototype about its own records."""
+
+    alert_type: str
+    incident_id: int
+    level: str | None = None
+    message: str
+
+
+class ActivityEntry(BaseModel):
+    """One row of the append-only action log."""
+
+    log_id: int
+    incident_id: int | None = None
+    resource_id: int | None = None
+    recommendation_id: int | None = None
+    alert_type: str
+    message: str
+    operator_decision: str | None = None
+    note: str | None = None
+    actor: str
+    timestamp: str
+
+
+class ActivityList(BaseModel):
+    count: int
+    total_count: int
+    entries: list[ActivityEntry]
+
+
 class AlertListResponse(BaseModel):
     count: int
     total_count: int
     limit: int
     offset: int
     alerts: list[ExternalAlert]
+    active_alerts: list[ActiveAlert] = []
+    recent_activity: list[ActivityEntry] = []
     disclaimer: str
 
 

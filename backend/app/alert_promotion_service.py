@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 
 from app import severity
+from app.agents.monitoring_agent import MonitoringAgent
 from app.database import get_connection
 from app.schemas import IncidentCreate, IncidentStatus, utc_now
 
@@ -27,6 +28,7 @@ class AlertAlreadyPromoted(AlertPromotionConflict):
 
 def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
     """Create an incident and link the reviewed alert inside one transaction."""
+    data = MonitoringAgent.normalize_report(data)
     connection = get_connection()
     try:
         connection.execute("BEGIN IMMEDIATE")

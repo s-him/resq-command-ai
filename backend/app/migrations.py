@@ -1052,6 +1052,153 @@ def _migration_013_add_dispatch_mode_and_deployment_ledger(
     )
 
 
+def _migration_014_create_action_log(connection: sqlite3.Connection) -> None:
+    """Add one append-only alert/action log, filled by triggers so no write skips it."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS action_log (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id         INTEGER,
+            resource_id         INTEGER,
+            recommendation_id   INTEGER,
+            alert_type          TEXT NOT NULL,
+            message             TEXT NOT NULL,
+            operator_decision   TEXT,
+            note                TEXT,
+            actor               TEXT NOT NULL,
+            created_at          TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_action_log_incident ON action_log (incident_id, id)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_action_log_created ON action_log (created_at, id)"
+    )
+
+    columns = (
+        "incident_id, resource_id, recommendation_id, alert_type, message, "
+        "operator_decision, note, actor, created_at"
+    )
+    # (source table, SELECT list using {r} for the source row, extra FROM/WHERE)
+    sources = [
+        ("incidents", """{r}.id, NULL, NULL, 'incident_reported',
+            'Incident #' || {r}.id || ' reported: ' || replace({r}.hazard_type, '_', ' ')
+              || ' at ' || {r}.location
+              || COALESCE(' (severity at intake: ' || {r}.severity_level || ', '
+              || {r}.severity_score || '/100)', ''),
+            NULL, NULL, 'system', {r}.created_at""", "", "1"),
+        ("recommendations", """{r}.incident_id, NULL, {r}.id, 'recommendation_generated',
+            {r}.summary, NULL, NULL, 'system', {r}.created_at""", "", "1"),
+        ("action_history", """{r}.incident_id, NULL, {r}.recommendation_id,
+            'recommendation_' || {r}.decision,
+            CASE WHEN {r}.note LIKE 'system-auto:%'
+              THEN 'Recommendation #' || {r}.recommendation_id
+                || ' approved automatically by the AUTO simulation policy (no human review).'
+              ELSE 'Operator ' || {r}.decision || ' recommendation #' || {r}.recommendation_id
+                || '. Approval alone reserves no stock.' END,
+            {r}.decision, {r}.note,
+            CASE WHEN {r}.note LIKE 'system-auto:%' THEN 'system-auto' ELSE 'operator' END,
+            {r}.created_at""", "", "1"),
+        ("incident_updates", """{r}.incident_id, NULL, NULL,
+            CASE {r}.event_type WHEN 'status_changed' THEN 'incident_status_changed'
+              ELSE 'incident_operator_note' END,
+            CASE {r}.event_type WHEN 'status_changed'
+              THEN 'Incident #' || {r}.incident_id || ' status changed from '
+                || {r}.previous_status || ' to ' || {r}.new_status || '.'
+              ELSE 'Operator note added to incident #' || {r}.incident_id || '.' END,
+            NULL, {r}.note, 'operator', {r}.created_at""", "", "1"),
+        # A recall is stored as a 'completed' plan action too; it is logged once,
+        # from the dispatch audit table.
+        ("response_plan_actions", """p.incident_id, NULL, p.recommendation_id,
+            'response_plan_' || {r}.action,
+            'Response plan #' || p.id || ' ' || CASE {r}.action
+              WHEN 'simulated' THEN 'approved for simulation; stock reserved virtually.'
+              ELSE {r}.action || '.' END,
+            CASE WHEN p.dispatch_mode = 'manual' AND {r}.action IN ('simulated', 'rejected')
+              THEN CASE {r}.action WHEN 'simulated' THEN 'approved' ELSE 'rejected' END END,
+            {r}.note,
+            CASE WHEN p.dispatch_mode = 'auto' AND {r}.action IN ('created', 'simulated')
+              THEN 'system-auto' ELSE 'operator' END,
+            {r}.created_at""", "response_plans p",
+            """p.id = {r}.response_plan_id AND NOT ({r}.action = 'completed' AND EXISTS (
+              SELECT 1 FROM dispatch_audit_events e
+              WHERE e.plan_id = p.id AND e.action = 'recalled')
+              OR {r}.action = 'completed' AND EXISTS (
+              SELECT 1 FROM dispatch_deployments d
+              WHERE d.plan_id = p.id AND d.status = 'recalled'))"""),
+        ("dispatch_audit_events", """{r}.incident_id, NULL, {r}.recommendation_id,
+            'dispatch_' || {r}.action,
+            'Simulated dispatch for incident #' || {r}.incident_id || ': '
+              || replace({r}.action, '_', ' ') || '.',
+            NULL, {r}.note, {r}.actor, {r}.created_at""", "",
+            "{r}.action != 'completed'"),
+        ("resource_change_history", """NULL, {r}.resource_id, NULL, 'resource_' || {r}.action,
+            'Resource #' || {r}.resource_id || ' ' || {r}.action || '.',
+            NULL, {r}.note, 'operator', {r}.created_at""", "", "1"),
+    ]
+
+    # Copy existing history first, oldest first, so upgraded databases keep it.
+    selects = []
+    for table, fields, join, condition in sources:
+        from_clause = f"{table} AS s" + (f", {join}" if join else "")
+        selects.append(
+            f"SELECT {fields.format(r='s')} FROM {from_clause} WHERE {condition.format(r='s')}"
+        )
+    names = [name.strip() for name in columns.split(",")]
+    connection.execute(f"CREATE TEMP TABLE action_log_backfill ({columns})")
+    for select in selects:
+        connection.execute(f"INSERT INTO action_log_backfill {select}")
+    connection.execute(
+        f"INSERT INTO action_log ({columns}) "
+        f"SELECT {', '.join(names)} FROM action_log_backfill ORDER BY created_at"
+    )
+    connection.execute("DROP TABLE action_log_backfill")
+
+    for table, fields, join, condition in sources:
+        from_clause = f" FROM {join}" if join else ""
+        connection.execute(
+            f"CREATE TRIGGER IF NOT EXISTS trg_action_log_{table} "
+            f"AFTER INSERT ON {table} BEGIN "
+            f"INSERT INTO action_log ({columns}) "
+            f"SELECT {fields.format(r='NEW')}{from_clause} "
+            f"WHERE {condition.format(r='NEW')}; END"
+        )
+
+    # External-alert reviews are updates. Only the latest review of each alert is
+    # stored, so that is all an upgrade can copy.
+    review_fields = """{r}.linked_incident_id, NULL, NULL, 'external_alert_' || {r}.review_status,
+        'External alert #' || {r}.id || ' marked ' || {r}.review_status || '.',
+        NULL, {r}.review_note, 'operator', {r}.reviewed_at"""
+    connection.execute(
+        f"INSERT INTO action_log ({columns}) "
+        f"SELECT {review_fields.format(r='s')} FROM external_alerts AS s "
+        "WHERE s.reviewed_at IS NOT NULL AND s.review_status != 'new'"
+    )
+    connection.execute(
+        f"CREATE TRIGGER IF NOT EXISTS trg_action_log_external_alerts "
+        f"AFTER UPDATE OF review_status, reviewed_at ON external_alerts "
+        f"WHEN NEW.reviewed_at IS NOT NULL AND NEW.review_status != 'new' "
+        f"AND NEW.reviewed_at IS NOT OLD.reviewed_at BEGIN "
+        f"INSERT INTO action_log ({columns}) SELECT {review_fields.format(r='NEW')}; END"
+    )
+
+    connection.execute(
+        f"""
+        CREATE TRIGGER IF NOT EXISTS trg_action_log_dispatch_settings
+        AFTER UPDATE ON dispatch_settings BEGIN
+            INSERT INTO action_log ({columns})
+            VALUES (NULL, NULL, NULL, 'dispatch_settings_changed',
+                'Dispatch settings changed: mode ' || NEW.mode
+                  || ', paused ' || CASE NEW.paused WHEN 1 THEN 'yes' ELSE 'no' END
+                  || ', minimum severity ' || NEW.minimum_severity || '.',
+                NULL, NULL, NEW.updated_by, NEW.updated_at);
+        END
+        """
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
@@ -1066,6 +1213,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (11, "011_create_incident_agent_runs", _migration_011_create_incident_agent_runs),
     (12, "012_add_incident_event_and_hazard_signal_fields", _migration_012_add_incident_event_and_hazard_signal_fields),
     (13, "013_add_dispatch_mode_and_deployment_ledger", _migration_013_add_dispatch_mode_and_deployment_ledger),
+    (14, "014_create_action_log", _migration_014_create_action_log),
 ]
 
 

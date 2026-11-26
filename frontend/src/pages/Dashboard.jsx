@@ -3,6 +3,7 @@ import PriorityQueueTable from "../components/dashboard/PriorityQueueTable";
 import StatCard from "../components/dashboard/StatCard";
 import WorkflowOverview from "../components/dashboard/WorkflowOverview";
 import AreaPriorityTable from "../components/dashboard/AreaPriorityTable";
+import ActiveAlertsPanel from "../components/dashboard/ActiveAlertsPanel";
 import DashboardLivePanels from "../components/dashboard/DashboardLivePanels";
 import { SkeletonStatCards } from "../components/common/Skeleton";
 import Icon from "../components/common/Icon";
@@ -24,6 +25,7 @@ export default function Dashboard({ onOpenCreateIncident }) {
     incidents,
     resources,
     alerts,
+    activeAlerts,
     responsePlans,
     recommendations,
     actions,
@@ -183,6 +185,8 @@ export default function Dashboard({ onOpenCreateIncident }) {
           />
         </section>
       )}
+
+      <ActiveAlertsPanel alerts={activeAlerts} />
 
       {/* Primary Focus: Priority Incident Queue */}
       <PriorityQueueTable

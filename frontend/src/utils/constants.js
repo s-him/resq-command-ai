@@ -123,4 +123,4 @@ export const SAFETY_NOTICE =
   "EXTERNAL ALERTS ARE UNVERIFIED | LIVE UPDATES ARE INFORMATIONAL | DEMO RECORDS ARE SIMULATED | AUTO ASSIGNMENTS ARE VIRTUAL | NO REAL RESPONDER OR STOCK MOVEMENT | NOT FOR REAL EMERGENCY USE";
 
 export const HUMAN_REVIEW_WARNING =
-  "MANUAL mode requires operator review. AUTO mode can create virtual assignments only; neither mode is a real dispatch instruction.";
+  "Operator review is required. Approving a recommendation does not reserve stock; stock is reserved (virtually) only when its response plan is approved. Nothing here is a real dispatch instruction.";

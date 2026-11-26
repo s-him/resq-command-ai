@@ -93,8 +93,15 @@ export default function DispatchSettingsPanel({ onUpdated, toast }) {
             disabled={loading || saving}
           >
             <option value="manual">MANUAL — operator approval</option>
-            <option value="auto">AUTO — simulated assignments</option>
+            <option value="auto" disabled={!settings?.auto_allowed}>
+              AUTO — simulated assignments{settings?.auto_allowed ? "" : " (disabled)"}
+            </option>
           </select>
+          {settings && !settings.auto_allowed && (
+            <span className="field-hint">
+              AUTO is off because every dispatch simulation needs human approval.
+            </span>
+          )}
         </div>
         <div className="form-field">
           <label htmlFor="dispatch-threshold">Minimum severity for AUTO</label>
@@ -122,7 +129,7 @@ export default function DispatchSettingsPanel({ onUpdated, toast }) {
             type="button"
             className={paused ? "btn btn-primary" : "btn btn-danger"}
             onClick={() => save({ paused: !paused })}
-            disabled={loading || saving || !settings}
+            disabled={loading || saving || !settings?.auto_allowed}
             aria-pressed={paused}
           >
             <Icon name={paused ? "arrowRight" : "xCircle"} size={15} />

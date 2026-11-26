@@ -270,7 +270,7 @@ The severity level thresholds are unchanged:
 0–24 **Low** · 25–49 **Medium** · 50–74 **High** · 75–100 **Critical**.
 
 The API response includes the numeric score, level, all six factors and their
-reasons, rules version `demo-rules-v2`, and a clear prototype disclaimer.
+reasons, rules version `demo-rules-v3`, and a clear prototype disclaimer.
 Clients cannot submit their own severity score.
 
 ### Hazard-signal inputs
@@ -285,7 +285,7 @@ Values remain source evidence, not verified measurements.
 
 Migration 012 adds the optional event time, magnitude, magnitude unit and provider alert-level incident columns. During startup,
 `fill_missing_severity()` recomputes incidents whose saved rules version is
-missing or not `demo-rules-v2`, using the data already stored. Incident IDs,
+missing or not `demo-rules-v3`, using the data already stored. Incident IDs,
 reported fields, status, recommendations and audit history are preserved.
 
 ### Affected-area priority
@@ -667,11 +667,11 @@ Status changes and operator notes are stored in `incident_updates`. Notes on clo
 
 The external-alert assessment described above is still deterministic. Phase 1 adds a separate incident-level pipeline with five named agents:
 
-1. **DetectionAgent** — reviews the existing incident and any linked normalized GDACS/USGS alert; produces a draft classification and incident summary for human verification.
+1. **MonitoringAgent** — reviews the existing incident and any linked normalized GDACS/USGS alert; produces a draft classification and incident summary for human verification.
 2. **SeverityAgent** — exposes the existing deterministic severity score and factor breakdown; an LLM can add explanation only.
 3. **PrioritizationAgent** — applies the existing deterministic severity → people affected → report time → ID order; an LLM cannot change ranks.
-4. **DispatchAgent** — calls the existing nearest/available stock matcher and records proposals and shortfalls; an LLM cannot modify allocation IDs or quantities.
-5. **CoordinatorAgent** — summarizes prior agent results and states the next operator review step.
+4. **ResourceAllocationAgent** — calls the existing nearest/available stock matcher and records proposals and shortfalls; an LLM cannot modify allocation IDs or quantities.
+5. **NotificationAgent** — summarizes prior agent results and states the next operator review step.
 
 The agents return AgentResult objects with name, mode (llm or rules), structured output, rationale, confidence field, and duration. The confidence field is an uncalibrated prototype indicator, not a probability.
 
@@ -711,6 +711,9 @@ The Incident Details page exposes this as **Run Agent Pipeline** and shows an **
 ---
 
 ## Automatic dispatch simulation (Phase 3)
+
+**Off by default.** Set `RESQ_ALLOW_AUTO_DISPATCH=true` to allow it; otherwise
+switching to `auto` returns 409 and a saved `auto` setting is ignored.
 
 Migration 013 adds a singleton dispatch settings row (default `manual`, not
 paused, minimum severity `High`), a per-resource deployment ledger, dispatch
@@ -763,3 +766,20 @@ SSE messages are notifications, not authoritative records. The frontend fetches
 current data through REST. EventSource reconnects automatically, with a
 10-second REST polling fallback while unavailable. The hub is in-process only;
 multi-worker deployments require shared messaging to fan out events.
+
+## Intake workflow, alerts and action log
+
+Every new incident is normalised by the Monitoring agent, run through the five
+agents, and given a pending recommendation (`app/incident_workflow.py`).
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/alerts` | Imported feed alerts, plus `active_alerts` and `recent_activity` |
+| GET | `/api/activity` | Full action log; filter by `incident_id` or `alert_type` |
+| POST | `/api/actions/{id}/decision` | Synopsis path; `{id}` is the recommendation ID |
+
+Migration 014 adds the `action_log` table, copies existing history into it and
+adds triggers that record new actions. For external alerts reviewed before the
+upgrade, only the latest review was stored, so only that one is copied.
+Open incidents are re-scored on every read so recency stays current; resolved
+and closed incidents keep their score from the time they left the open state.

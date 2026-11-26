@@ -511,7 +511,7 @@ export default function IncidentDetails({ incidentId }) {
           <EmptyState
             icon="cpu"
             title="No agent runs recorded"
-            description="Run the pipeline to see detection, severity, prioritization, dispatch-planning, and coordinator results for this incident."
+            description="Run the pipeline to see monitoring, severity, prioritization, resource-allocation, and notification results for this incident."
             actionLabel="Run Agent Pipeline"
             onAction={handleRunAgentPipeline}
           />

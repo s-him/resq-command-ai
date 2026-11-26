@@ -18,7 +18,7 @@ from app.schemas import (
     SeverityLevel,
 )
 
-RULES_VERSION = "demo-rules-v2"
+RULES_VERSION = "demo-rules-v3"
 MAX_SCORE = 100
 
 DISCLAIMER = (
@@ -368,9 +368,37 @@ def score_event_recency(
     )
 
 
+# A mention is ignored only when the text clearly rules it out, for example
+# "No hospitals or schools nearby" or "The school is unaffected". Anything less
+# clear still counts, because missing a vulnerable group is the worse error.
+_TERM_GROUP = "|".join(re.escape(term) for term in sorted(VULNERABLE_TERMS, key=len, reverse=True))
+_NEGATED_PATTERNS = (
+    # "no/without <terms> [nearby ...] affected/nearby/present/involved/at risk"
+    re.compile(
+        rf"(?<!\w)(?:no|without any|without|none of the)\s+"
+        rf"(?:(?:{_TERM_GROUP})(?!\w)(?:\s*,\s*|\s+(?:or|nor|and)\s+|\s+)?)+"
+        rf"(?:(?:are|is|were|was)\s+)?"
+        rf"(?:nearby|affected|present|involved|at risk|in the area)(?!\w)"
+        rf"(?:\s+(?:(?:are|is|were|was)\s+)?(?:affected|at risk|involved))?"
+    ),
+    # "<term> is/are not affected" or "<term> unaffected"
+    re.compile(
+        rf"(?<!\w)(?:{_TERM_GROUP})\s+(?:(?:is|are|was|were)\s+)?"
+        rf"(?:not affected|unaffected|not at risk)(?!\w)"
+    ),
+)
+
+
+def _remove_negated_mentions(text: str) -> str:
+    for pattern in _NEGATED_PATTERNS:
+        text = pattern.sub(" ", text)
+    return text
+
+
 def score_vulnerable_population(description: str | None, location: str | None) -> SeverityFactor:
     """Factor 6: explicit vulnerable-setting/population terms in the report text."""
-    text = f"{description or ''} {location or ''}".lower()
+    # The full stop keeps a negation in the description away from the location text.
+    text = _remove_negated_mentions(f"{description or ''} . {location or ''}".lower())
     found = []
     for term in VULNERABLE_TERMS:
         if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text):

@@ -10,6 +10,7 @@ from app.dispatch_schemas import (
     DispatchSettings,
     DispatchSettingsUpdate,
 )
+from app.config import auto_dispatch_allowed
 from app.event_hub import publish_event
 
 router = APIRouter(prefix="/api/dispatch", tags=["Dispatch Simulation"])
@@ -29,6 +30,14 @@ def get_dispatch_settings() -> dict:
 @router.patch("/settings", response_model=DispatchSettings)
 def update_dispatch_settings(payload: DispatchSettingsUpdate) -> dict:
     """Persist operator settings. Enabling AUTO processes eligible open incidents once."""
+    if payload.mode is not None and payload.mode.value == "auto" and not auto_dispatch_allowed():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "AUTO mode is disabled because every dispatch simulation requires human "
+                "approval. Set RESQ_ALLOW_AUTO_DISPATCH=true to enable it for a demo."
+            ),
+        )
     try:
         settings = dispatch_settings_repository.update_dispatch_settings(payload)
     except ValueError as exc:

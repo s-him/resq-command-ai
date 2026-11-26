@@ -1,15 +1,40 @@
-"""Detection and incident-draft agent; all model fields remain unverified suggestions."""
+"""Monitoring agent: validates and normalises incoming reports.
+
+Required fields and value ranges are enforced by the IncidentCreate schema
+before this agent runs, and the database assigns the incident ID. All model
+fields remain unverified suggestions.
+"""
 
 from time import perf_counter
 from typing import Any
 
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
+
 from app.agents.agent_result import AgentResult
-from app.agents.agent_schemas import DetectionSuggestion
+from app.agents.agent_schemas import MonitoringSuggestion
 from app.agents.base import AgentBase
+from app.schemas import IncidentCreate
 
 
-class DetectionAgent(AgentBase):
-    name = "DetectionAgent"
+class MonitoringAgent(AgentBase):
+    name = "MonitoringAgent"
+
+    @staticmethod
+    def normalize_report(report: IncidentCreate) -> IncidentCreate:
+        """Collapse stray whitespace so equal reports are stored and grouped alike."""
+        cleaned = {
+            "description": " ".join(report.description.split()),
+            "location": " ".join(report.location.split()),
+        }
+        # Re-validate: collapsing spaces can make a field shorter than its minimum.
+        try:
+            return IncidentCreate.model_validate({**report.model_dump(), **cleaned})
+        except ValidationError as exc:
+            # Reported to the client as the usual 422 with a field-level message.
+            raise RequestValidationError(
+                [{**error, "loc": ("body", *error["loc"])} for error in exc.errors()]
+            ) from exc
 
     def run(self, context: dict[str, Any]) -> AgentResult:
         started = perf_counter()
@@ -28,7 +53,7 @@ class DetectionAgent(AgentBase):
             ),
         }
         suggestion, fallback = self.ask_llm(
-            response_model=DetectionSuggestion,
+            response_model=MonitoringSuggestion,
             system_prompt=(
                 "You are an emergency-report triage assistant. Review the supplied "
                 "normalized provider alert when present and the linked incident report. "
@@ -75,7 +100,7 @@ class DetectionAgent(AgentBase):
         }
         rationale = (
             suggestion.rationale if suggestion is not None
-            else fallback or "Detection uses the current operator-entered incident as its evidence."
+            else fallback or "Monitoring uses the current operator-entered incident as its evidence."
         )
         return self.finish(
             name=self.name,

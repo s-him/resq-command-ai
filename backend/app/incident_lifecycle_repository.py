@@ -1,5 +1,6 @@
 """Transactional incident lifecycle changes and operator activity records."""
 
+from app import incident_repository
 from app.database import get_connection
 from app.schemas import IncidentStatus, utc_now
 
@@ -62,6 +63,9 @@ def change_incident_status(
                     "response simulation(s) are still active. Complete the "
                     "simulation plan(s) first."
                 )
+
+        if current == IncidentStatus.OPEN:
+            incident_repository.save_current_severity(connection, incident_id)
 
         connection.execute(
             "UPDATE incidents SET status = ? WHERE id = ?",

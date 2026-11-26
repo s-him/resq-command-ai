@@ -30,6 +30,8 @@ def test_agent_run_is_saved_and_trace_is_readable_without_dispatch(client):
     )
     assert resource.status_code == 201
 
+    history_before = client.get(f"/api/incidents/{incident_id}/history").json()
+
     run = client.post(f"/api/incidents/{incident_id}/agent-runs")
     assert run.status_code == 201, run.text
     run_body = run.json()
@@ -41,13 +43,13 @@ def test_agent_run_is_saved_and_trace_is_readable_without_dispatch(client):
 
     trace = client.get(f"/api/incidents/{incident_id}/agent-trace")
     assert trace.status_code == 200
-    assert trace.json()["count"] == 1
+    assert trace.json()["count"] == 2  # intake workflow run + this manual run
     assert trace.json()["traces"][0]["id"] == run_body["id"]
 
     # Running the agents is analysis only: no recommendation, plan or stock change.
     history = client.get(f"/api/incidents/{incident_id}/history")
     assert history.status_code == 200
-    assert history.json()["recommendations"] == []
+    assert history.json() == history_before
     assert client.get("/api/resources").json()[0]["quantity_available"] == 2
     assert client.get("/api/response-plans").json()["plans"] == []
 
@@ -74,5 +76,5 @@ def test_multiple_agent_runs_are_kept_as_separate_snapshots(client):
     assert first.status_code == second.status_code == 201
     assert first.json()["id"] != second.json()["id"]
     history = client.get(f"/api/incidents/{incident['id']}/agent-trace").json()
-    assert history["count"] == 2
+    assert history["count"] == 3  # intake workflow run + two manual runs
     assert history["traces"][0]["id"] == second.json()["id"]

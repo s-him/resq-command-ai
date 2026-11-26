@@ -1,78 +1,88 @@
-import React, { useMemo, useState } from "react";
-import { CodeBadge, StatusBadge } from "../components/common/Badge";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { CodeBadge } from "../components/common/Badge";
 import EmptyState from "../components/common/EmptyState";
 import ErrorState from "../components/common/ErrorState";
 import Icon from "../components/common/Icon";
 import { SkeletonTable } from "../components/common/Skeleton";
 import { useData } from "../context/DataContext";
 import { navigate } from "../hooks/useHashRoute";
-import {
-  buildActivityEvents,
-  EVENT_META,
-  EVENT_SOURCE_LABELS,
-} from "../utils/events";
+import { listActivity } from "../services/activityService";
 import {
   dateKey,
   formatDateHeading,
   formatDateTime,
   incidentCode,
+  labelize,
   recommendationCode,
+  resourceCode,
 } from "../utils/format";
 
-export default function ActivityHistory() {
-  const {
-    incidents,
-    recommendations,
-    actions,
-    histories,
-    refreshing,
-    refreshAll,
-  } = useData();
+const PAGE_LIMIT = 500;
 
-  const [typeFilter, setTypeFilter] = useState("all");
+const CATEGORIES = [
+  { value: "all", label: "All event types", prefixes: [] },
+  { value: "incident", label: "Incidents and status changes", prefixes: ["incident_"] },
+  { value: "decision", label: "Recommendations and decisions", prefixes: ["recommendation_"] },
+  { value: "plan", label: "Response plans and dispatch", prefixes: ["response_plan_", "dispatch_"] },
+  { value: "resource", label: "Resource changes", prefixes: ["resource_"] },
+  { value: "review", label: "External alert reviews", prefixes: ["external_alert_"] },
+];
+
+function iconFor(type) {
+  if (type.startsWith("incident_")) return { icon: "alert", tone: "blue" };
+  if (type.endsWith("_approved") || type.endsWith("_simulated")) return { icon: "checkCircle", tone: "teal" };
+  if (type.endsWith("_rejected")) return { icon: "xCircle", tone: "slate" };
+  if (type.startsWith("dispatch_")) return { icon: "ambulance", tone: "amber" };
+  if (type.startsWith("resource_")) return { icon: "package", tone: "cyan" };
+  return { icon: "cpu", tone: "cyan" };
+}
+
+export default function ActivityHistory() {
+  const { lastUpdated, refreshing, refreshAll } = useData();
+  const [log, setLog] = useState({ entries: [], total: 0, loading: true, error: null });
+  const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
 
-  const allEvents = useMemo(
-    () =>
-      buildActivityEvents({
-        incidents: incidents.data,
-        recommendations,
-        actions,
-      }),
-    [incidents.data, recommendations, actions]
-  );
+  const load = useCallback(async () => {
+    try {
+      const result = await listActivity({ limit: PAGE_LIMIT });
+      setLog({ entries: result.entries, total: result.total_count, loading: false, error: null });
+    } catch (error) {
+      setLog((current) => ({ ...current, loading: false, error }));
+    }
+  }, []);
+
+  // lastUpdated changes whenever the shared data reloads (live stream or Refresh).
+  useEffect(() => {
+    load();
+  }, [load, lastUpdated]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allEvents.filter((ev) => {
-      if (typeFilter !== "all" && ev.type !== typeFilter) return false;
+    const prefixes = CATEGORIES.find((item) => item.value === category)?.prefixes || [];
+    return log.entries.filter((entry) => {
+      if (prefixes.length && !prefixes.some((prefix) => entry.alert_type.startsWith(prefix))) return false;
       if (!q) return true;
-      return (
-        incidentCode(ev.incidentId).toLowerCase().includes(q) ||
-        (ev.recommendationId &&
-          recommendationCode(ev.recommendationId).toLowerCase().includes(q)) ||
-        ev.description.toLowerCase().includes(q) ||
-        (ev.note || "").toLowerCase().includes(q)
-      );
+      return [
+        entry.message,
+        entry.note,
+        entry.actor,
+        entry.incident_id ? incidentCode(entry.incident_id) : "",
+        entry.recommendation_id ? recommendationCode(entry.recommendation_id) : "",
+      ].some((value) => String(value || "").toLowerCase().includes(q));
     });
-  }, [allEvents, typeFilter, search]);
+  }, [log.entries, category, search]);
 
   const groupedByDate = useMemo(() => {
-    const groups = [];
-    const indexByKey = {};
-    for (const ev of filtered) {
-      const key = dateKey(ev.timestamp);
-      if (!(key in indexByKey)) {
-        indexByKey[key] = groups.length;
-        groups.push({
-          key,
-          heading: formatDateHeading(ev.timestamp),
-          events: [],
-        });
+    const groups = new Map();
+    for (const entry of filtered) {
+      const key = dateKey(entry.timestamp);
+      if (!groups.has(key)) {
+        groups.set(key, { key, heading: formatDateHeading(entry.timestamp), entries: [] });
       }
-      groups[indexByKey[key]].events.push(ev);
+      groups.get(key).entries.push(entry);
     }
-    return groups;
+    return [...groups.values()];
   }, [filtered]);
 
   return (
@@ -81,8 +91,8 @@ export default function ActivityHistory() {
         <div>
           <h2 className="page-heading">Activity &amp; Audit History</h2>
           <p className="page-subheading">
-            Chronological operational audit trail of reported incidents, generated recommendations,
-            and recorded operator decisions.
+            The saved action log: incidents, status changes, notes, recommendations, decisions,
+            response plans, simulated dispatch and resource changes.
           </p>
         </div>
 
@@ -90,7 +100,10 @@ export default function ActivityHistory() {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={refreshAll}
+            onClick={() => {
+              load();
+              refreshAll();
+            }}
             disabled={refreshing}
           >
             <Icon name="refresh" size={16} className={refreshing ? "spin" : ""} />
@@ -105,7 +118,7 @@ export default function ActivityHistory() {
             <Icon name="search" size={16} className="search-icon" />
             <input
               type="search"
-              placeholder="Search audit events by incident ID, recommendation ID, description, or operator note..."
+              placeholder="Search by incident ID, recommendation ID, message, actor, or note..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Search activity history"
@@ -114,32 +127,32 @@ export default function ActivityHistory() {
 
           <div className="filter-group">
             <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
               aria-label="Filter by event category"
             >
-              <option value="all">All event types</option>
-              <option value="recommendation_approved">Operator Approvals</option>
-              <option value="recommendation_rejected">Operator Rejections</option>
-              <option value="recommendation_generated">Recommendations Generated</option>
-              <option value="incident_reported">Incidents Reported</option>
+              {CATEGORIES.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
             </select>
           </div>
         </div>
 
-        {histories.error && allEvents.length === 0 ? (
-          <ErrorState
-            title="Could not load activity history"
-            error={histories.error}
-            onRetry={refreshAll}
-          />
-        ) : histories.loading && allEvents.length === 0 ? (
+        {log.total > log.entries.length && (
+          <p className="field-hint">
+            Showing the newest {log.entries.length} of {log.total} entries.
+          </p>
+        )}
+
+        {log.error && log.entries.length === 0 ? (
+          <ErrorState title="Could not load activity history" error={log.error} onRetry={load} />
+        ) : log.loading ? (
           <SkeletonTable rows={5} />
-        ) : allEvents.length === 0 ? (
+        ) : log.entries.length === 0 ? (
           <EmptyState
             icon="history"
             title="No operational activity recorded yet"
-            description="As incidents are reported, recommendations are generated, and operator decisions are saved, their chronological audit trail appears here."
+            description="Actions appear here as soon as they are saved."
             actionLabel="Return to Dashboard"
             onAction={() => navigate("#/")}
           />
@@ -151,7 +164,7 @@ export default function ActivityHistory() {
             secondaryActionLabel="Reset Filters"
             onSecondaryAction={() => {
               setSearch("");
-              setTypeFilter("all");
+              setCategory("all");
             }}
           />
         ) : (
@@ -160,38 +173,35 @@ export default function ActivityHistory() {
               <div key={group.key} className="date-group">
                 <div className="date-group-heading">{group.heading}</div>
                 <ol className="timeline-list">
-                  {group.events.map((ev) => {
-                    const meta = EVENT_META[ev.type] || EVENT_META.incident_reported;
+                  {group.entries.map((entry) => {
+                    const meta = iconFor(entry.alert_type);
                     return (
-                      <li key={ev.key} className="timeline-item">
+                      <li key={entry.log_id} className="timeline-item">
                         <span className={`timeline-dot timeline-dot-${meta.tone}`}>
                           <Icon name={meta.icon} size={14} />
                         </span>
                         <div className="timeline-card">
                           <div className="timeline-card-top">
                             <div className="timeline-title-row">
-                              <strong>{meta.label}</strong>
-                              <CodeBadge
-                                onClick={() => navigate(`#/incidents/${ev.incidentId}`)}
-                              >
-                                {incidentCode(ev.incidentId)}
-                              </CodeBadge>
-                              {ev.recommendationId && (
-                                <CodeBadge>
-                                  {recommendationCode(ev.recommendationId)}
+                              <strong>{labelize(entry.alert_type)}</strong>
+                              {entry.incident_id && (
+                                <CodeBadge onClick={() => navigate(`#/incidents/${entry.incident_id}`)}>
+                                  {incidentCode(entry.incident_id)}
                                 </CodeBadge>
                               )}
-                              {ev.decision && <StatusBadge status={ev.decision} />}
+                              {entry.recommendation_id && (
+                                <CodeBadge>{recommendationCode(entry.recommendation_id)}</CodeBadge>
+                              )}
+                              {entry.resource_id && <CodeBadge>{resourceCode(entry.resource_id)}</CodeBadge>}
                             </div>
                             <span className="text-muted tabular">
-                              {formatDateTime(ev.timestamp)} ·{" "}
-                              {EVENT_SOURCE_LABELS[ev.source]}
+                              {formatDateTime(entry.timestamp)} · {entry.actor}
                             </span>
                           </div>
-                          <p className="timeline-desc">{ev.description}</p>
-                          {ev.note && (
+                          <p className="timeline-desc">{entry.message}</p>
+                          {entry.note && (
                             <div className="timeline-note">
-                              <strong>Operator Note:</strong> {ev.note}
+                              <strong>Note:</strong> {entry.note}
                             </div>
                           )}
                         </div>
@@ -207,4 +217,3 @@ export default function ActivityHistory() {
     </div>
   );
 }
-

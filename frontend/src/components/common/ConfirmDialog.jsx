@@ -92,6 +92,7 @@ export default function ConfirmDialog({
           <strong>Prototype boundary:</strong> Confirming saves this decision and appends an entry
           to the SQLite action history. It does not dispatch emergency personnel, contact external
           services, or deduct resource inventory quantities.
+          {isApprove && " Stock is not reserved until you create and approve a response plan."}
         </div>
       </div>
     </Modal>

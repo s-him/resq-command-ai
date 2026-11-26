@@ -21,6 +21,7 @@ export function DataProvider({ children }) {
   const [incidents, setIncidents] = useState(initialSlice([]));
   const [resources, setResources] = useState(initialSlice([]));
   const [alerts, setAlerts] = useState(initialSlice([]));
+  const [activeAlerts, setActiveAlerts] = useState([]);
   const [responsePlans, setResponsePlans] = useState(initialSlice([]));
   const [histories, setHistories] = useState({ data: {}, loading: true, error: null, failedIds: [] });
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -102,6 +103,7 @@ export function DataProvider({ children }) {
       if (a.status === "fulfilled") setAreaPriority({ data: a.value, loading: false, error: null });
       else setAreaPriority((s) => ({ ...s, loading: false, error: a.reason }));
 
+      if (alertResult.status === "fulfilled") setActiveAlerts(alertResult.value.active_alerts || []);
       if (alertResult.status === "fulfilled") setAlerts({ data: alertResult.value.alerts, loading: false, error: null });
       else setAlerts((s) => ({ ...s, loading: false, error: alertResult.reason }));
 
@@ -210,6 +212,7 @@ export function DataProvider({ children }) {
     incidents,
     resources,
     alerts,
+    activeAlerts,
     responsePlans,
     histories,
     lastUpdated,

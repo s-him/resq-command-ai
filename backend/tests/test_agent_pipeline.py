@@ -4,9 +4,9 @@ from datetime import datetime, timedelta, timezone
 
 from app.agent_orchestrator import run_incident_pipeline
 from app.agents.agent_schemas import (
-    CoordinatorNarrative,
-    DetectionSuggestion,
-    DispatchNarrative,
+    NotificationNarrative,
+    MonitoringSuggestion,
+    AllocationNarrative,
     PriorityNarrative,
     SeverityNarrative,
 )
@@ -34,8 +34,8 @@ def create_incident(client, people=50):
 
 class SuccessfulLLM:
     def complete_json(self, *, system_prompt, user_payload, response_model):
-        if response_model is DetectionSuggestion:
-            return DetectionSuggestion(
+        if response_model is MonitoringSuggestion:
+            return MonitoringSuggestion(
                 actionable_candidate=True,
                 hazard_type=HazardType.FLOOD,
                 draft_description="Floodwater has been reported near the clinic.",
@@ -54,13 +54,13 @@ class SuccessfulLLM:
                 review_reason="The deterministic queue places this incident according to score, people, time and ID.",
                 caveats=["The rank is not official emergency guidance."],
             )
-        if response_model is DispatchNarrative:
-            return DispatchNarrative(
+        if response_model is AllocationNarrative:
+            return AllocationNarrative(
                 operational_note="The deterministic matcher has proposed stock-limited options for operator review.",
                 cautions=["No team has been dispatched."],
             )
-        if response_model is CoordinatorNarrative:
-            return CoordinatorNarrative(
+        if response_model is NotificationNarrative:
+            return NotificationNarrative(
                 summary="Five advisory agents reviewed the reported flood incident.",
                 operator_next_step="Verify the report and review the resource proposal before any operational action.",
                 cautions=["No inventory was changed."],
@@ -96,11 +96,11 @@ def test_all_five_agents_use_validated_llm_suggestions_without_overriding_rules(
     run = run_incident_pipeline(incident_id, llm_client=SuccessfulLLM())
 
     assert [agent["name"] for agent in run["agents"]] == [
-        "DetectionAgent",
+        "MonitoringAgent",
         "SeverityAgent",
         "PrioritizationAgent",
-        "DispatchAgent",
-        "CoordinatorAgent",
+        "ResourceAllocationAgent",
+        "NotificationAgent",
     ]
     assert all(agent["mode"] == "llm" for agent in run["agents"])
     severity = run["agents"][1]["output"]["authoritative_assessment"]

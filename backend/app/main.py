@@ -24,7 +24,7 @@ from app.config import (
 )
 from app.database import init_database
 from app.errors import validation_error_handler
-from app.routers import alerts, assessments, demo, dispatch, events, health, incidents, recommendations, resources, response_plans
+from app.routers import actions, activity, alerts, assessments, demo, dispatch, events, health, incidents, recommendations, resources, response_plans
 
 
 logger = logging.getLogger(__name__)
@@ -120,6 +120,8 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 # Register routers (groups of endpoints).
 app.include_router(health.router)
+app.include_router(actions.router)
+app.include_router(activity.router)
 app.include_router(alerts.router)
 app.include_router(assessments.router)
 app.include_router(incidents.router)

@@ -1,5 +1,6 @@
 """Persistent operator settings for MANUAL/AUTO dispatch simulation."""
 
+from app.config import auto_dispatch_allowed
 from app.database import get_connection
 from app.schemas import utc_now
 
@@ -15,14 +16,18 @@ def get_dispatch_settings() -> dict:
             # Migration 013 normally inserts this singleton. Keep a safe fallback
             # in case an older test database is inspected before app startup.
             return {
+                "auto_allowed": auto_dispatch_allowed(),
                 "mode": "manual",
                 "paused": False,
                 "minimum_severity": "High",
                 "updated_at": utc_now(),
                 "updated_by": "system-default",
             }
+        allowed = auto_dispatch_allowed()
         return {
-            "mode": row["mode"],
+            "auto_allowed": allowed,
+            # A saved AUTO setting has no effect while AUTO is not allowed.
+            "mode": row["mode"] if allowed else "manual",
             "paused": bool(row["paused"]),
             "minimum_severity": row["minimum_severity"],
             "updated_at": row["updated_at"],

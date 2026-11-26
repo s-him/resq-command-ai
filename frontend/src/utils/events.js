@@ -62,7 +62,9 @@ export function buildActivityEvents({ incidents = [], recommendations = [], acti
       action: action.action,
       decision: action.decision,
       note: action.note,
-      description: `Operator decision recorded as "${action.decision}" (action: ${action.action}). No resources were dispatched or reserved.`,
+      description: String(action.note || "").startsWith("system-auto:")
+        ? "Approved automatically by the AUTO simulation policy (no human review). Any assignment is virtual."
+        : `Operator decision recorded as "${action.decision}". Approval alone reserves no stock and dispatches nothing.`,
     });
   }
 
