@@ -143,7 +143,7 @@ def test_indexes_and_schema_migrations_exist_after_init(client):
         "idx_recommendation_items_recommendation_id",
         "idx_recommendation_items_resource_id",
     }.issubset(index_names)
-    assert applied == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+    assert applied == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 
 
 # ---------- Upgrading a pre-upgrade legacy database ----------
@@ -197,7 +197,7 @@ def test_upgrade_legacy_database_preserves_records_ids_and_enforces_constraints(
     # All records and exact IDs are preserved.
     assert incident["id"] == 10
     assert incident["location"] == "Ward 10"
-    assert incident["severity"]["score"] == 55  # 30 people (+25) + medical (+30)
+    assert incident["severity"]["score"] == 41  # 18 people + 15 immediate + 8 flood; legacy report is stale
     assert incident["latitude"] is None
 
     assert len(resources) == 1 and resources[0]["id"] == 20
@@ -232,11 +232,93 @@ def test_upgrade_legacy_database_preserves_records_ids_and_enforces_constraints(
 # ---------- Re-running migrations safely (idempotency) ----------
 
 
+def test_old_rules_version_is_recalculated(client):
+    from datetime import datetime, timezone
+    from app import incident_repository
+
+    created = client.post(
+        "/api/incidents",
+        json={
+            "hazard_type": "earthquake",
+            "description": "Reported earthquake shaking near a school building.",
+            "location": "Ward 8",
+            "reported_at": datetime.now(timezone.utc).isoformat(),
+            "people_affected": 30,
+            "help_needed": ["medical"],
+            "hazard_magnitude": 6.4,
+            "hazard_magnitude_unit": "magnitude",
+            "provider_alert_level": "orange",
+        },
+    )
+    assert created.status_code == 201, created.text
+    incident_id = created.json()["id"]
+
+    connection = database.get_connection()
+    try:
+        connection.execute(
+            "UPDATE incidents SET severity_rules_version = 'demo-rules-v1', severity_score = 1 WHERE id = ?",
+            (incident_id,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    assert incident_repository.fill_missing_severity() == 1
+    updated = client.get(f"/api/incidents/{incident_id}").json()
+    assert updated["severity"]["rules_version"] == "demo-rules-v2"
+    assert updated["severity"]["score"] > 1
+    assert updated["severity"]["factors"][3]["points"] == 12
+
+
+def test_migration_013_creates_safe_manual_dispatch_defaults(client):
+    settings = client.get("/api/dispatch/settings")
+    assert settings.status_code == 200
+    assert settings.json()["mode"] == "manual"
+    assert settings.json()["paused"] is False
+    assert settings.json()["minimum_severity"] == "High"
+
+    connection = database.get_connection()
+    try:
+        tables = {
+            row["name"]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+        plan_columns = {
+            row["name"] for row in connection.execute(
+                "PRAGMA table_info(response_plans)"
+            ).fetchall()
+        }
+        versions = migrations.get_applied_versions(connection)
+    finally:
+        connection.close()
+
+    assert {"dispatch_settings", "dispatch_deployments", "dispatch_audit_events"}.issubset(tables)
+    assert "dispatch_mode" in plan_columns
+    assert 13 in versions
+
+
+def test_migration_012_adds_optional_hazard_signal_columns(client):
+    connection = database.get_connection()
+    try:
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(incidents)").fetchall()
+        }
+        versions = migrations.get_applied_versions(connection)
+    finally:
+        connection.close()
+
+    assert {"event_at", "hazard_magnitude", "hazard_magnitude_unit", "provider_alert_level"}.issubset(columns)
+    assert {12, 13}.issubset(versions)
+
+
 def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     first = database.init_database()
     second = database.init_database()
 
-    assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
     assert second == []
 
     connection = database.get_connection()
@@ -245,7 +327,7 @@ def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     finally:
         connection.close()
 
-    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
 
 
 # ---------- Invalid legacy rows halt safely without losing data ----------

@@ -4,6 +4,7 @@ import threading
 from datetime import datetime, timezone
 
 from app import alert_repository, alert_sources
+from app.event_hub import publish_event
 from app.config import (
     ALERT_AUTO_SYNC_ENABLED,
     GDACS_SYNC_INTERVAL_SECONDS,
@@ -89,6 +90,16 @@ def sync_sources(sources: list[str]) -> dict:
                 "finished_at": finished_at,
             }
         )
+        if created_count or updated_count:
+            publish_event(
+                "alerts.updated",
+                {
+                    "source": source,
+                    "created_count": created_count,
+                    "updated_count": updated_count,
+                    "status": status,
+                },
+            )
 
     successes = sum(1 for result in results if result["status"] == "success")
     if successes == len(results):

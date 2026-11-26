@@ -19,11 +19,15 @@ class ResourceReservationConflict(ResponsePlanConflict):
 def _row_to_plan(connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     items = connection.execute(
         """
-        SELECT id, resource_id, resource_name, resource_type, resource_location,
-               assigned_quantity, distance_km, distance_basis
-        FROM response_plan_items
-        WHERE response_plan_id = ?
-        ORDER BY id
+        SELECT rpi.id, rpi.resource_id, rpi.resource_name, rpi.resource_type,
+               rpi.resource_location, rpi.assigned_quantity, rpi.distance_km,
+               rpi.distance_basis, d.status AS deployment_status,
+               d.incident_id AS assigned_incident_id
+        FROM response_plan_items rpi
+        LEFT JOIN dispatch_deployments d
+          ON d.plan_id = rpi.response_plan_id AND d.resource_id = rpi.resource_id
+        WHERE rpi.response_plan_id = ?
+        ORDER BY rpi.id
         """,
         (row["id"],),
     ).fetchall()
@@ -41,6 +45,7 @@ def _row_to_plan(connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str, 
         "incident_id": row["incident_id"],
         "recommendation_id": row["recommendation_id"],
         "status": row["status"],
+        "dispatch_mode": row["dispatch_mode"] if "dispatch_mode" in row.keys() else "manual",
         "summary": row["summary"],
         "decision_note": row["decision_note"],
         "created_at": row["created_at"],
@@ -278,6 +283,100 @@ def complete_response_plan(plan_id: int, note: str | None) -> dict[str, Any]:
                 note or "Simulation marked complete; simulation-only reservations released.",
                 completed_at,
             ),
+        )
+
+        connection.execute(
+            """
+            UPDATE dispatch_deployments
+            SET status = 'completed', updated_at = ?
+            WHERE plan_id = ? AND status = 'deployed'
+            """,
+            (completed_at, plan_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO dispatch_audit_events
+                (incident_id, recommendation_id, plan_id, action, actor, note, created_at)
+            SELECT incident_id, recommendation_id, id, 'completed', 'operator', ?, ?
+            FROM response_plans
+            WHERE id = ? AND dispatch_mode = 'auto'
+            """,
+            (note or "Operator completed the simulated deployment.", completed_at, plan_id),
+        )
+        connection.commit()
+        updated = connection.execute(
+            "SELECT * FROM response_plans WHERE id = ?", (plan_id,)
+        ).fetchone()
+        return _row_to_plan(connection, updated)
+    except Exception:
+        if connection.in_transaction:
+            connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+
+def recall_response_plan(plan_id: int, note: str | None) -> dict[str, Any]:
+    """Recall an active AUTO deployment and release its simulated reservations."""
+    recalled_at = utc_now().isoformat()
+    connection = get_connection()
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT status, dispatch_mode FROM response_plans WHERE id = ?",
+            (plan_id,),
+        ).fetchone()
+        if row is None:
+            raise LookupError(f"Response plan {plan_id} not found.")
+        if row["status"] != "simulated" or row["dispatch_mode"] != "auto":
+            raise ResponsePlanConflict(
+                "Only an active AUTO deployment can be recalled."
+            )
+        active = connection.execute(
+            "SELECT COUNT(*) FROM dispatch_deployments "
+            "WHERE plan_id = ? AND status = 'deployed'",
+            (plan_id,),
+        ).fetchone()[0]
+        if int(active) == 0:
+            raise ResponsePlanConflict("This plan has no active deployed assignments.")
+
+        connection.execute(
+            """
+            UPDATE response_plans
+            SET status = 'completed', completed_at = ?,
+                decision_note = ?
+            WHERE id = ? AND status = 'simulated'
+            """,
+            (recalled_at, note or "Operator recalled the simulated deployment.", plan_id),
+        )
+        connection.execute(
+            """
+            UPDATE dispatch_deployments
+            SET status = 'recalled', updated_at = ?
+            WHERE plan_id = ? AND status = 'deployed'
+            """,
+            (recalled_at, plan_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO response_plan_actions (response_plan_id, action, note, created_at)
+            VALUES (?, 'completed', ?, ?)
+            """,
+            (
+                plan_id,
+                note or "AUTO deployment recalled by operator; reservations released.",
+                recalled_at,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO dispatch_audit_events
+                (incident_id, recommendation_id, plan_id, action, actor, note, created_at)
+            SELECT incident_id, recommendation_id, id, 'recalled', 'operator', ?, ?
+            FROM response_plans WHERE id = ?
+            """,
+            (note or "Operator recalled the simulated deployment.", recalled_at, plan_id),
         )
         connection.commit()
         updated = connection.execute(

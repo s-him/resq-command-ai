@@ -42,6 +42,7 @@ def _row_to_incident(row: sqlite3.Row) -> Incident:
         description=row["description"],
         location=row["location"],
         reported_at=row["reported_at"],
+        event_at=row["event_at"],
         people_affected=row["people_affected"],
         help_needed=json.loads(row["help_needed"]),  # JSON text -> Python list
         status=row["status"],
@@ -49,6 +50,9 @@ def _row_to_incident(row: sqlite3.Row) -> Incident:
         severity=_row_to_severity(row),
         latitude=row["latitude"],
         longitude=row["longitude"],
+        hazard_magnitude=row["hazard_magnitude"],
+        hazard_magnitude_unit=row["hazard_magnitude_unit"],
+        provider_alert_level=row["provider_alert_level"],
     )
 
 
@@ -65,7 +69,17 @@ def _severity_values(assessment: SeverityAssessment) -> tuple:
 
 def create_incident(data: IncidentCreate) -> Incident:
     """Score a new incident, save it with status "open", and return it (with its new ID)."""
-    assessment = severity.calculate_severity(data.people_affected, data.help_needed)
+    assessment = severity.calculate_severity(
+        data.people_affected,
+        data.help_needed,
+        hazard_type=data.hazard_type,
+        description=data.description,
+        location=data.location,
+        reported_at=data.event_at or data.reported_at,
+        hazard_magnitude=data.hazard_magnitude,
+        hazard_magnitude_unit=data.hazard_magnitude_unit,
+        provider_alert_level=data.provider_alert_level,
+    )
 
     connection = get_connection()
     try:
@@ -75,10 +89,11 @@ def create_incident(data: IncidentCreate) -> Incident:
             INSERT INTO incidents
                 (hazard_type, description, location, reported_at,
                  people_affected, help_needed, status, created_at,
-                 severity_score, severity_level, severity_explanation,
+                 event_at, severity_score, severity_level, severity_explanation,
                  severity_factors, severity_rules_version,
-                 latitude, longitude)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 latitude, longitude, hazard_magnitude, hazard_magnitude_unit,
+                 provider_alert_level)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.hazard_type.value,
@@ -89,9 +104,13 @@ def create_incident(data: IncidentCreate) -> Incident:
                 json.dumps([help_type.value for help_type in data.help_needed]),
                 IncidentStatus.OPEN.value,
                 utc_now().isoformat(),
+                data.event_at.isoformat() if data.event_at else None,
                 *_severity_values(assessment),
                 data.latitude,
                 data.longitude,
+                data.hazard_magnitude,
+                data.hazard_magnitude_unit,
+                data.provider_alert_level,
             ),
         )
         connection.commit()
@@ -154,7 +173,14 @@ def fill_missing_severity() -> int:
     connection = get_connection()
     try:
         rows = connection.execute(
-            "SELECT id, people_affected, help_needed FROM incidents WHERE severity_score IS NULL"
+            """
+            SELECT id, hazard_type, description, location, reported_at, event_at,
+                   people_affected, help_needed, hazard_magnitude,
+                   hazard_magnitude_unit, provider_alert_level
+            FROM incidents
+            WHERE severity_score IS NULL OR severity_rules_version IS NULL OR severity_rules_version != ?
+            """,
+            (severity.RULES_VERSION,),
         ).fetchall()
         if not rows:
             return 0
@@ -162,7 +188,17 @@ def fill_missing_severity() -> int:
         connection.execute("BEGIN")
         for row in rows:
             help_needed = [HelpType(value) for value in json.loads(row["help_needed"])]
-            assessment = severity.calculate_severity(row["people_affected"], help_needed)
+            assessment = severity.calculate_severity(
+                row["people_affected"],
+                help_needed,
+                hazard_type=row["hazard_type"],
+                description=row["description"],
+                location=row["location"],
+                reported_at=row["event_at"] or row["reported_at"],
+                hazard_magnitude=row["hazard_magnitude"],
+                hazard_magnitude_unit=row["hazard_magnitude_unit"],
+                provider_alert_level=row["provider_alert_level"],
+            )
             connection.execute(
                 """
                 UPDATE incidents

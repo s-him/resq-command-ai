@@ -162,18 +162,93 @@ def test_invalid_data_is_not_saved(client):
 # ---------- Severity scoring ----------
 
 
-def test_new_incident_includes_severity(client):
-    # VALID_INCIDENT: 40 people (25 points) + evacuation (immediate, 30 points) = 55 -> High
-    severity = client.post("/api/incidents", json=VALID_INCIDENT).json()["severity"]
+def test_new_incident_includes_six_factor_severity(client):
+    from datetime import datetime, timezone
 
-    assert severity["score"] == 55
+    payload = {
+        **VALID_INCIDENT,
+        "reported_at": datetime.now(timezone.utc).isoformat(),
+    }
+    severity = client.post("/api/incidents", json=payload).json()["severity"]
+
+    assert severity["score"] == 56  # 18 people + 15 immediate + 8 flood + 15 fresh report
     assert severity["max_score"] == 100
     assert severity["level"] == "High"
-    assert severity["explanation"] == (
-        "Score 55/100 (High): 40 people affected (+25); immediate help needed: evacuation (+30)"
-    )
-    assert [factor["factor"] for factor in severity["factors"]] == ["people_affected", "immediate_help"]
+    assert severity["explanation"].startswith("Score 56/100 (High):")
+    assert [factor["factor"] for factor in severity["factors"]] == [
+        "people_affected",
+        "immediate_help",
+        "hazard_type",
+        "hazard_signal",
+        "event_recency",
+        "vulnerable_population",
+    ]
+    assert sum(factor["max_points"] for factor in severity["factors"]) == 100
     assert "prototype" in severity["disclaimer"].lower()
+
+
+def test_optional_hazard_signal_metadata_is_saved(client):
+    from datetime import datetime, timezone
+
+    response = client.post(
+        "/api/incidents",
+        json={
+            **VALID_INCIDENT,
+            "reported_at": datetime.now(timezone.utc).isoformat(),
+            "hazard_magnitude": 6.4,
+            "hazard_magnitude_unit": "magnitude",
+            "provider_alert_level": "orange",
+        },
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["hazard_magnitude"] == 6.4
+    assert body["hazard_magnitude_unit"] == "magnitude"
+    assert body["provider_alert_level"] == "orange"
+    assert body["severity"]["factors"][3]["points"] == 10
+
+
+def test_event_at_is_saved_and_used_for_severity_recency(client):
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    response = client.post(
+        "/api/incidents",
+        json={
+            **VALID_INCIDENT,
+            "reported_at": now.isoformat(),
+            "event_at": (now - timedelta(hours=12)).isoformat(),
+        },
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["event_at"] is not None
+    assert body["severity"]["factors"][4]["points"] == 9
+
+
+def test_future_event_time_is_rejected(client):
+    from datetime import datetime, timedelta, timezone
+
+    future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    response = client.post(
+        "/api/incidents",
+        json={**VALID_INCIDENT, "event_at": future},
+    )
+    assert response.status_code == 422
+    assert "event_at cannot be in the future" in response.text
+
+
+def test_hazard_magnitude_requires_a_unit_and_provider_level_is_validated(client):
+    partial = client.post(
+        "/api/incidents",
+        json={**VALID_INCIDENT, "hazard_magnitude": 6.4},
+    )
+    invalid_level = client.post(
+        "/api/incidents",
+        json={**VALID_INCIDENT, "provider_alert_level": "purple"},
+    )
+    assert partial.status_code == 422
+    assert invalid_level.status_code == 422
 
 
 def test_severity_is_saved_and_listed(client):
@@ -225,7 +300,7 @@ def test_old_incidents_get_scored_on_startup(temp_database):
 
     assert len(incidents) == 1
     assert incidents[0]["location"] == "Sector 4"  # original data kept
-    assert incidents[0]["severity"]["score"] == 20  # 5 people (10) + basic needs (10)
+    assert incidents[0]["severity"]["score"] == 21  # 8 people + 5 basic needs + 8 fire
     assert incidents[0]["severity"]["level"] == "Low"
     assert incidents[0]["latitude"] is None
     assert incidents[0]["longitude"] is None

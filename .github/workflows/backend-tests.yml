@@ -1,9 +1,10 @@
-name: Backend tests
+name: Backend and frontend checks
 
 on:
   push:
     branches:
       - main
+      - feature/full-spec
       - feature/disaster-alert-ingestion
       - feature/multi-agent-assessment
       - feature/geospatial-resource-planning
@@ -16,6 +17,7 @@ on:
   pull_request:
     branches:
       - main
+      - feature/full-spec
       - feature/disaster-alert-ingestion
       - feature/multi-agent-assessment
       - feature/geospatial-resource-planning

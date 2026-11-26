@@ -36,10 +36,10 @@ export default function SeverityPanel({ severity }) {
         </div>
         <span
           className="rules-pill tabular"
-          title="Unvalidated prototype score calculated from people_affected (0–60) + immediate_help (10–40)."
+          title="Unvalidated six-factor prototype score: people, immediate help, hazard category, hazard signal, event recency and vulnerable population."
         >
           <Icon name="info" size={14} />
-          <span>Rules: {rulesVersion || "demo-rules-v1"}</span>
+          <span>Rules: {rulesVersion || "demo-rules-v2"}</span>
         </span>
       </div>
 

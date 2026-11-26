@@ -910,6 +910,148 @@ def _migration_010_create_incident_updates(
     )
 
 
+def _migration_011_create_incident_agent_runs(connection: sqlite3.Connection) -> None:
+    """Store immutable inputs, outputs, modes and timings for incident-agent runs."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_agent_runs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id     INTEGER NOT NULL,
+            inputs_summary  TEXT NOT NULL,
+            agents_json     TEXT NOT NULL,
+            summary         TEXT NOT NULL,
+            engine_version  TEXT NOT NULL,
+            duration_ms     INTEGER NOT NULL CHECK (duration_ms >= 0),
+            generated_at    TEXT NOT NULL,
+            FOREIGN KEY (incident_id) REFERENCES incidents (id) ON DELETE RESTRICT
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_incident_agent_runs_incident "
+        "ON incident_agent_runs (incident_id, id)"
+    )
+
+
+def _migration_012_add_incident_event_and_hazard_signal_fields(connection: sqlite3.Connection) -> None:
+    """Add optional event time and provider/magnitude inputs used by severity rules v2."""
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(incidents)").fetchall()
+    }
+    if "event_at" not in columns:
+        connection.execute("ALTER TABLE incidents ADD COLUMN event_at TEXT")
+    if "hazard_magnitude" not in columns:
+        connection.execute(
+            "ALTER TABLE incidents ADD COLUMN hazard_magnitude REAL "
+            "CHECK (hazard_magnitude IS NULL OR hazard_magnitude >= 0)"
+        )
+    if "hazard_magnitude_unit" not in columns:
+        connection.execute(
+            "ALTER TABLE incidents ADD COLUMN hazard_magnitude_unit TEXT"
+        )
+    if "provider_alert_level" not in columns:
+        connection.execute(
+            "ALTER TABLE incidents ADD COLUMN provider_alert_level TEXT "
+            "CHECK (provider_alert_level IS NULL OR provider_alert_level IN ('red', 'orange', 'green'))"
+        )
+
+
+def _migration_013_add_dispatch_mode_and_deployment_ledger(
+    connection: sqlite3.Connection,
+) -> None:
+    """Add persistent MANUAL/AUTO settings and explicit simulated deployment records."""
+    response_plan_columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(response_plans)").fetchall()
+    }
+    if "dispatch_mode" not in response_plan_columns:
+        connection.execute(
+            "ALTER TABLE response_plans ADD COLUMN dispatch_mode TEXT NOT NULL "
+            "DEFAULT 'manual' CHECK (dispatch_mode IN ('manual', 'auto'))"
+        )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dispatch_settings (
+            id              INTEGER PRIMARY KEY CHECK (id = 1),
+            mode            TEXT NOT NULL DEFAULT 'manual'
+                                CHECK (mode IN ('manual', 'auto')),
+            paused          INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1)),
+            minimum_severity TEXT NOT NULL DEFAULT 'High'
+                                CHECK (minimum_severity IN ('High', 'Critical')),
+            updated_at      TEXT NOT NULL,
+            updated_by      TEXT NOT NULL DEFAULT 'operator'
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO dispatch_settings
+            (id, mode, paused, minimum_severity, updated_at, updated_by)
+        VALUES (1, 'manual', 0, 'High', ?, 'system-migration')
+        """,
+        (_utc_now_iso(),),
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dispatch_deployments (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id             INTEGER NOT NULL,
+            incident_id         INTEGER NOT NULL,
+            resource_id         INTEGER NOT NULL,
+            assigned_quantity   INTEGER NOT NULL CHECK (assigned_quantity > 0),
+            status              TEXT NOT NULL DEFAULT 'deployed'
+                                    CHECK (status IN ('deployed', 'recalled', 'completed')),
+            actor               TEXT NOT NULL,
+            created_at          TEXT NOT NULL,
+            updated_at          TEXT,
+            FOREIGN KEY (plan_id) REFERENCES response_plans (id) ON DELETE RESTRICT,
+            FOREIGN KEY (incident_id) REFERENCES incidents (id) ON DELETE RESTRICT,
+            FOREIGN KEY (resource_id) REFERENCES resources (id) ON DELETE RESTRICT,
+            UNIQUE (plan_id, resource_id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_dispatch_deployments_resource_status
+        ON dispatch_deployments (resource_id, status)
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_dispatch_deployments_incident_status
+        ON dispatch_deployments (incident_id, status)
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dispatch_audit_events (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id         INTEGER NOT NULL,
+            recommendation_id   INTEGER,
+            plan_id              INTEGER,
+            action               TEXT NOT NULL,
+            actor                TEXT NOT NULL,
+            note                 TEXT,
+            created_at           TEXT NOT NULL,
+            FOREIGN KEY (incident_id) REFERENCES incidents (id) ON DELETE RESTRICT,
+            FOREIGN KEY (recommendation_id) REFERENCES recommendations (id) ON DELETE RESTRICT,
+            FOREIGN KEY (plan_id) REFERENCES response_plans (id) ON DELETE RESTRICT
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_dispatch_audit_incident
+        ON dispatch_audit_events (incident_id, id)
+        """
+    )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
@@ -921,6 +1063,9 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (8, "008_link_reviewed_alerts_to_incidents", _migration_008_link_reviewed_alerts_to_incidents),
     (9, "009_create_resource_change_history", _migration_009_create_resource_change_history),
     (10, "010_create_incident_updates", _migration_010_create_incident_updates),
+    (11, "011_create_incident_agent_runs", _migration_011_create_incident_agent_runs),
+    (12, "012_add_incident_event_and_hazard_signal_fields", _migration_012_add_incident_event_and_hazard_signal_fields),
+    (13, "013_add_dispatch_mode_and_deployment_ledger", _migration_013_add_dispatch_mode_and_deployment_ledger),
 ]
 
 

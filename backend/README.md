@@ -82,8 +82,23 @@ backend/
 
 ## Requirements
 
-- Windows 10/11
-- Python 3.10 or newer (check with `python --version`)
+- Windows 10/11, Linux, or macOS
+- Python 3.10 or newer
+- Git (for cloning the repository)
+
+## Setup (Linux / macOS)
+
+Run these commands from the repository root:
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Then start the API from `backend/` with `uvicorn app.main:app --reload`. For the full application, the repository-root `./run.sh` launcher starts both the backend and frontend.
 
 ---
 
@@ -222,66 +237,66 @@ it is recreated automatically on the next start.
 
 ---
 
-## Severity scoring (prototype)
+## Severity scoring (prototype rules v2)
 
 > [!WARNING]
-> The severity score is an **unvalidated prototype estimate** made from simple
-> demonstration rules. It is **not real emergency guidance**. A human operator
-> must review every incident.
+> The 0–100 severity score is an **unvalidated academic prototype estimate**.
+> It is not a calibrated probability, verified risk score, or real emergency
+> instruction. A human operator must review every incident.
 
-Every incident is scored automatically when it is created. The rules live in
-[`app/severity.py`](app/severity.py) and add up two factors (0–100 total):
+Every incident is scored on creation and whenever the server starts with an old
+or missing rules version. The rules live in [`app/severity.py`](app/severity.py)
+and return six independently explained factors. Their maximum values sum to
+100:
 
-**Factor 1 – people affected (0–60 points)**
+| Factor | Maximum | Prototype rule |
+|---|---:|---|
+| `people_affected` | 35 | 0: 0; 1–9: 8; 10–49: 18; 50–199: 25; 200–999: 30; 1000+: 35 |
+| `immediate_help` | 20 | No immediate life-safety help: 5; one of rescue/medical/evacuation/firefighting: 15; two or more: 20 |
+| `hazard_type` | 10 | Flood/fire/landslide: 8; earthquake/cyclone/building collapse: 10; chemical spill: 9; other: 3 |
+| `hazard_signal` | 15 | Provider level green: 4, orange: 10, red: 15; earthquake magnitude, cyclone category/wind, or flood-water depth bands |
+| `event_recency` | 15 | Under 1 hour: 15; up to 6 hours: 12; up to 24 hours: 9; up to 72 hours: 5; older/missing/future: 0 |
+| `vulnerable_population` | 5 | Explicit mention of hospital, school, elderly, children, infants or care settings in description/location: 5; otherwise 0 |
 
-| People affected | Points |
-|-----------------|--------|
-| 0               | 0      |
-| 1–9             | 10     |
-| 10–49           | 25     |
-| 50–199          | 40     |
-| 200–999         | 50     |
-| 1000+           | 60     |
+When provider alert level and a supported measurement are both present, the
+strongest applicable hazard-signal band is used once, not added together.
+Earthquake values require a magnitude unit. Cyclone measurements accept integer
+categories 1–5 or supported wind-speed units (km/h, knots, m/s, mph). Flood depth
+accepts m, cm, mm or ft. The prototype depth bands are below 0.2 m: 0 points; 0.2–0.49 m:
+4 points; 0.5–0.99 m: 10 points; 1 m or more: 15 points. Unsupported measurements
+are retained in the incident record but receive no extra points.
 
-**Factor 2 – immediate help needed (10–40 points)**
-"Immediate" help types: `rescue`, `medical`, `evacuation`, `firefighting`.
+The severity level thresholds are unchanged:
+0–24 **Low** · 25–49 **Medium** · 50–74 **High** · 75–100 **Critical**.
 
-| Help requested                                    | Points |
-|---------------------------------------------------|--------|
-| Only basic needs (`shelter`, `food`, `water`, `other`) | 10 |
-| One immediate help type                           | 30     |
-| Two or more immediate help types                  | 40     |
+The API response includes the numeric score, level, all six factors and their
+reasons, rules version `demo-rules-v2`, and a clear prototype disclaimer.
+Clients cannot submit their own severity score.
 
-**Level:** 0–24 **Low** · 25–49 **Medium** · 50–74 **High** · 75–100 **Critical**
+### Hazard-signal inputs
 
-Each incident in the API response includes a `severity` object:
+Manual incident requests may include optional `hazard_magnitude` and
+`hazard_magnitude_unit` as a pair, plus optional `provider_alert_level`
+(`green`, `orange`, or `red`). GDACS/USGS reviewed-alert promotion copies
+available provider event time, alert level, value and unit into these fields automatically.
+Values remain source evidence, not verified measurements.
 
-```json
-"severity": {
-  "score": 70,
-  "max_score": 100,
-  "level": "High",
-  "explanation": "Score 70/100 (High): 120 people affected (+40); immediate help needed: medical (+30)",
-  "factors": [
-    {"factor": "people_affected", "points": 40, "max_points": 60, "reason": "120 people affected"},
-    {"factor": "immediate_help", "points": 30, "max_points": 40, "reason": "immediate help needed: medical"}
-  ],
-  "rules_version": "demo-rules-v1",
-  "disclaimer": "Unvalidated prototype estimate for an academic demonstration. Not real emergency guidance. A human operator must review it."
-}
-```
+### Existing database upgrade
 
-The score, level, explanation, factors and rules version are saved in the
-database (`severity_*` columns). Clients cannot send their own severity.
+Migration 012 adds the optional event time, magnitude, magnitude unit and provider alert-level incident columns. During startup,
+`fill_missing_severity()` recomputes incidents whose saved rules version is
+missing or not `demo-rules-v2`, using the data already stored. Incident IDs,
+reported fields, status, recommendations and audit history are preserved.
 
-**Older databases:** when the server starts it adds any missing `severity_*`
-columns and scores incidents that were saved before scoring existed. No
-existing data is deleted.
+### Affected-area priority
 
-```powershell
-curl.exe -X POST http://127.0.0.1:8000/api/incidents -H "Content-Type: application/json" -d "@examples/incident_low.json"
-curl.exe -X POST http://127.0.0.1:8000/api/incidents -H "Content-Type: application/json" -d "@examples/incident_high.json"
-```
+`GET /api/incidents/areas/priority` groups **open** incidents by their recorded
+location text after trimming whitespace and matching case-insensitively. Areas
+are ranked by highest individual severity score, then total reported people
+affected, earliest first report, and top incident ID. The endpoint and main
+dashboard explicitly disclose that no geocoding, region boundaries, or separate
+population dataset is used.
+
 
 ---
 
@@ -381,7 +396,7 @@ Foreign-key enforcement (`PRAGMA foreign_keys = ON`) is enabled on every connect
 
 | Table | Key constraints & relationships |
 |---|---|
-| `incidents` | `id` PK; `people_affected >= 0`; `status IN ('open', 'resolved', 'closed')`; paired optional `latitude` (`-90..90`) and `longitude` (`-180..180`); `severity_*` columns. Indexed on `status`. |
+| `incidents` | `id` PK; `people_affected >= 0`; `status IN ('open', 'resolved', 'closed')`; paired optional `latitude` (`-90..90`) and `longitude` (`-180..180`); optional `event_at`, `hazard_magnitude`, `hazard_magnitude_unit`, `provider_alert_level`; `severity_*` columns. Indexed on `status`. |
 | `resources` | `id` PK; `quantity_available >= 0`; `availability_status IN ('available', 'limited', 'unavailable')`; optional paired latitude/longitude coordinates added by migration 006. Physical quantity is kept separate from active simulation reservations. |
 | `recommendations` | `id` PK; `incident_id` FK → `incidents(id)`; `status IN ('pending', 'approved', 'rejected')`; JSON `unavailable_needs` & `insufficient_needs` (unmatched gaps); `decision_note`, `decided_at`. Indexed on `incident_id`. |
 | `recommendation_items` | `id` PK; `recommendation_id` FK → `recommendations(id)`; `resource_id` FK → `resources(id)`; `recommended_quantity > 0`; `available_quantity >= 0`; `for_help_needed` (JSON list); `explanation`; optional `distance_km` and `distance_basis`; `UNIQUE (recommendation_id, resource_id)`. Indexed on `recommendation_id` and `resource_id`. |
@@ -644,3 +659,107 @@ Allowed lifecycle transitions are `open → resolved`, `resolved → open` (reop
 An incident cannot be closed while it has one or more response plans in `simulated` state. Complete those simulation plans first. This check and status update run in one SQLite `BEGIN IMMEDIATE` transaction.
 
 Status changes and operator notes are stored in `incident_updates`. Notes on closed incidents are rejected. These are operator-entered prototype records; they do not independently verify field conditions or responder attendance. The application does not yet authenticate operator identities.
+
+
+---
+
+## Incident-level AI-assisted agents (Phase 1)
+
+The external-alert assessment described above is still deterministic. Phase 1 adds a separate incident-level pipeline with five named agents:
+
+1. **DetectionAgent** — reviews the existing incident and any linked normalized GDACS/USGS alert; produces a draft classification and incident summary for human verification.
+2. **SeverityAgent** — exposes the existing deterministic severity score and factor breakdown; an LLM can add explanation only.
+3. **PrioritizationAgent** — applies the existing deterministic severity → people affected → report time → ID order; an LLM cannot change ranks.
+4. **DispatchAgent** — calls the existing nearest/available stock matcher and records proposals and shortfalls; an LLM cannot modify allocation IDs or quantities.
+5. **CoordinatorAgent** — summarizes prior agent results and states the next operator review step.
+
+The agents return AgentResult objects with name, mode (llm or rules), structured output, rationale, confidence field, and duration. The confidence field is an uncalibrated prototype indicator, not a probability.
+
+### API
+
+| Method | URL | Purpose |
+|---|---|---|
+| POST | /api/incidents/{incident_id}/agent-runs | Run and persist the five-agent pipeline |
+| GET | /api/incidents/{incident_id}/agent-trace | Read recent immutable trace snapshots |
+
+Each trace stores a privacy-minimized input summary, all agent outputs and modes, the coordinator summary, engine version, timing and creation timestamp. Migration 011 creates incident_agent_runs and its incident lookup index. Migration 012 adds optional event time and hazard-signal metadata to incidents and remains additive.
+
+### Optional OpenAI-compatible LLM
+
+The LLM provider is off unless LLM_ENABLED=true. No new dependency was added: the client uses the existing httpx package and calls POST {LLM_BASE_URL}/chat/completions. It requests JSON mode and validates the response against a strict Pydantic schema. All exceptions, timeouts, malformed JSON, and validation failures fall back to deterministic rules.
+
+| Environment variable | Default |
+|---|---|
+| LLM_ENABLED | false |
+| LLM_BASE_URL | https://api.openai.com/v1 |
+| LLM_API_KEY | empty |
+| LLM_MODEL | gpt-4o-mini |
+| LLM_TIMEOUT_SECONDS | 8 |
+
+The repository root contains .env.example as a reference only; FastAPI does not load it automatically. Export the variables in the server process environment. Never commit API keys. With LLM disabled or unavailable, the backend runs fully offline.
+
+### Run one incident through the agents
+
+~~~bash
+curl -X POST http://127.0.0.1:8000/api/incidents/1/agent-runs
+curl http://127.0.0.1:8000/api/incidents/1/agent-trace
+~~~
+
+The Incident Details page exposes this as **Run Agent Pipeline** and shows an **Agent Activity** timeline. The run is analysis-only: it does not create or modify incidents, save a resource recommendation, approve a plan, modify physical stock, or dispatch a team. Existing operator gates remain intact.
+
+
+---
+
+## Automatic dispatch simulation (Phase 3)
+
+Migration 013 adds a singleton dispatch settings row (default `manual`, not
+paused, minimum severity `High`), a per-resource deployment ledger, dispatch
+audit events, and a `dispatch_mode` field on response plans.
+
+When the operator switches to `auto`, each eligible open incident runs the
+five-agent pipeline and the deterministic resource matcher. The matcher’s
+recommended quantities are then revalidated in a single SQLite
+`BEGIN IMMEDIATE` transaction. Recommendation approval, response-plan rows,
+active reservations, deployment assignments and `system-auto` audit events
+commit together or roll back together. AUTO assignments remain virtual:
+`quantity_available` is not physically decremented. The API separately reports
+`simulation_reserved_quantity`, `simulation_remaining_quantity` and
+`deployed_quantity`.
+
+The `minimum_severity` setting accepts `High` (High or Critical) or
+`Critical`. MANUAL remains the default. The pause switch blocks new automatic
+assignments and retry attempts. Complete and Recall release reservations and
+preserve deployment lifecycle audit events. When stock is added or increased,
+the service retries shortfalls in deterministic priority order and subtracts
+previously active deployed quantities before proposing additional units.
+
+### API and safety checks
+
+| Method | URL | Purpose |
+|---|---|---|
+| GET/PATCH | `/api/dispatch/settings` | Persist mode, severity threshold and emergency pause |
+| GET | `/api/dispatch/deployments` | Inspect incident-linked AUTO assignments |
+| GET | `/api/dispatch/audit` | Inspect actor-labelled dispatch audit events |
+| POST | `/api/dispatch/incidents/{id}/retry` | Retry a previously recorded shortfall |
+| POST | `/api/response-plans/{id}/recall` | Recall an active AUTO assignment |
+| POST | `/api/response-plans/{id}/complete` | Complete a simulated assignment |
+
+All AUTO output is a simulation only. It does not contact emergency services,
+send notifications, move real responders, or modify physical inventory.
+
+
+---
+
+## Real-time event stream (Phase 4)
+
+\`GET /api/events/stream\` is a FastAPI Server-Sent Events endpoint backed by
+\`app/event_hub.py\`. The thread-safe hub sends bounded, JSON-safe invalidation
+events after committed alert, incident, recommendation, resource, response-plan,
+dispatch-setting and agent-run changes. Subscribers are removed when their
+stream closes. A slow subscriber drops its oldest queued event rather than
+blocking application writes.
+
+SSE messages are notifications, not authoritative records. The frontend fetches
+current data through REST. EventSource reconnects automatically, with a
+10-second REST polling fallback while unavailable. The hub is in-process only;
+multi-worker deployments require shared messaging to fan out events.

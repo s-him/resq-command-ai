@@ -6,6 +6,7 @@ same SQLite transaction. No response plan or dispatch is created.
 """
 
 import json
+from datetime import datetime
 
 from app import severity
 from app.database import get_connection
@@ -31,7 +32,8 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
         connection.execute("BEGIN IMMEDIATE")
         alert = connection.execute(
             """
-            SELECT id, review_status, linked_incident_id
+            SELECT id, review_status, linked_incident_id,
+                   alert_level, severity_value, severity_unit, event_at
             FROM external_alerts
             WHERE id = ?
             """,
@@ -50,7 +52,35 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
                 "Mark the external alert as reviewed before creating an incident."
             )
 
-        assessment = severity.calculate_severity(data.people_affected, data.help_needed)
+        magnitude = (
+            data.hazard_magnitude
+            if data.hazard_magnitude is not None
+            else alert["severity_value"]
+        )
+        magnitude_unit = (
+            data.hazard_magnitude_unit
+            if data.hazard_magnitude_unit is not None
+            else alert["severity_unit"]
+        )
+        provider_level = data.provider_alert_level or alert["alert_level"]
+        provider_level = str(provider_level).strip().lower() if provider_level else None
+        if provider_level not in {"red", "orange", "green"}:
+            provider_level = None
+        event_at = data.event_at or alert["event_at"]
+        event_at_for_storage = (
+            event_at.isoformat() if isinstance(event_at, datetime) else event_at
+        )
+        assessment = severity.calculate_severity(
+            data.people_affected,
+            data.help_needed,
+            hazard_type=data.hazard_type,
+            description=data.description,
+            location=data.location,
+            reported_at=event_at or data.reported_at,
+            hazard_magnitude=magnitude,
+            hazard_magnitude_unit=magnitude_unit,
+            provider_alert_level=provider_level,
+        )
         severity_factors = json.dumps(
             [factor.model_dump() for factor in assessment.factors]
         )
@@ -58,11 +88,12 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
             """
             INSERT INTO incidents (
                 hazard_type, description, location, reported_at,
-                people_affected, help_needed, status, created_at,
+                people_affected, help_needed, status, created_at, event_at,
                 severity_score, severity_level, severity_explanation,
-                severity_factors, severity_rules_version, latitude, longitude
+                severity_factors, severity_rules_version, latitude, longitude,
+                hazard_magnitude, hazard_magnitude_unit, provider_alert_level
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.hazard_type.value,
@@ -73,6 +104,7 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
                 json.dumps([item.value for item in data.help_needed]),
                 IncidentStatus.OPEN.value,
                 utc_now().isoformat(),
+                event_at_for_storage,
                 assessment.score,
                 assessment.level.value,
                 assessment.explanation,
@@ -80,6 +112,9 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
                 assessment.rules_version,
                 data.latitude,
                 data.longitude,
+                magnitude,
+                magnitude_unit,
+                provider_level,
             ),
         )
         incident_id = int(cursor.lastrowid)

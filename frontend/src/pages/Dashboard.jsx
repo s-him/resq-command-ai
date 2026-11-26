@@ -1,19 +1,30 @@
-import React from "react";
+import React, { useState } from "react";
 import PriorityQueueTable from "../components/dashboard/PriorityQueueTable";
 import StatCard from "../components/dashboard/StatCard";
 import WorkflowOverview from "../components/dashboard/WorkflowOverview";
+import AreaPriorityTable from "../components/dashboard/AreaPriorityTable";
+import DashboardLivePanels from "../components/dashboard/DashboardLivePanels";
 import { SkeletonStatCards } from "../components/common/Skeleton";
 import Icon from "../components/common/Icon";
 import IncidentMapPanel from "../components/incidents/IncidentMapPanel";
 import { useData } from "../context/DataContext";
 import { navigate } from "../hooks/useHashRoute";
 import { formatDateTime, formatNumber } from "../utils/format";
+import { runDemoScenario } from "../services/demoService";
 
 export default function Dashboard({ onOpenCreateIncident }) {
+  const [demoScenario, setDemoScenario] = useState("cyclone");
+  const [demoRunning, setDemoRunning] = useState(false);
+  const [demoFeedback, setDemoFeedback] = useState("");
+  const [demoError, setDemoError] = useState("");
+
   const {
     priority,
+    areaPriority,
     incidents,
     resources,
+    alerts,
+    responsePlans,
     recommendations,
     actions,
     lastUpdated,
@@ -41,6 +52,21 @@ export default function Dashboard({ onOpenCreateIncident }) {
     incidents.loading &&
     resources.loading &&
     incidents.data.length === 0;
+
+  const handleRunDemo = async () => {
+    setDemoRunning(true);
+    setDemoFeedback("");
+    setDemoError("");
+    try {
+      const result = await runDemoScenario(demoScenario);
+      await refreshAll();
+      setDemoFeedback(result.message);
+    } catch (error) {
+      setDemoError(error.message || "The demo scenario could not be started.");
+    } finally {
+      setDemoRunning(false);
+    }
+  };
 
   return (
     <div className="page-stack">
@@ -78,6 +104,42 @@ export default function Dashboard({ onOpenCreateIncident }) {
           </button>
         </div>
       </section>
+
+      <section className="demo-launcher surface-card" aria-label="Simulated demo scenarios">
+        <div className="demo-launcher-copy">
+          <span className="demo-eyebrow">SIMULATED DATA</span>
+          <h3>Run demo scenario</h3>
+          <p>Inject a labeled sample event, run the agents and update the live dashboard. No real alerts or responders are involved.</p>
+        </div>
+        <div className="demo-launcher-controls">
+          <label className="sr-only" htmlFor="demo-scenario">Choose a demo scenario</label>
+          <select
+            id="demo-scenario"
+            className="demo-scenario-select"
+            value={demoScenario}
+            onChange={(event) => setDemoScenario(event.target.value)}
+            disabled={demoRunning}
+          >
+            <option value="cyclone">Cyclone — Odisha coast</option>
+            <option value="flood">Flood — Assam</option>
+            <option value="earthquake">Earthquake — Northeast India</option>
+          </select>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleRunDemo}
+            disabled={demoRunning}
+          >
+            <Icon name={demoRunning ? "loader" : "play"} size={15} className={demoRunning ? "spin" : ""} />
+            <span>{demoRunning ? "Running scenario..." : "Run demo scenario"}</span>
+          </button>
+        </div>
+      </section>
+      {(demoFeedback || demoError) && (
+        <p className={`demo-feedback ${demoError ? "demo-feedback-error" : ""}`} role={demoError ? "alert" : "status"}>
+          {demoError || demoFeedback}
+        </p>
+      )}
 
       {statsLoading ? (
         <SkeletonStatCards count={4} />
@@ -129,6 +191,11 @@ export default function Dashboard({ onOpenCreateIncident }) {
         onOpenCreateIncident={onOpenCreateIncident}
       />
 
+      <AreaPriorityTable
+        areaPrioritySlice={areaPriority}
+        onRetry={refreshAll}
+      />
+
       <WorkflowOverview
         incidentCount={incidents.data.length}
         prioritizedCount={openIncidents.length}
@@ -137,6 +204,14 @@ export default function Dashboard({ onOpenCreateIncident }) {
       />
 
       <IncidentMapPanel incidents={openIncidents} resources={resources.data} />
+
+      <DashboardLivePanels
+        alerts={alerts.data}
+        incidents={incidents.data}
+        resources={resources.data}
+        responsePlans={responsePlans.data}
+        onRefresh={refreshAll}
+      />
     </div>
   );
 }

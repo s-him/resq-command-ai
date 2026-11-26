@@ -12,13 +12,13 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 APP_NAME = "Autonomous Multi-Agent Disaster Relief & Emergency Dispatch Engine"
-APP_VERSION = "0.9.0"
+APP_VERSION = "0.10.0"
 APP_DESCRIPTION = (
     "Academic prototype for a college mini-project. "
     "Uses manually entered reports and read-only public alerts from GDACS and USGS. "
     "It is NOT a real emergency system, does not connect to emergency services "
     "or dispatch systems, and does not predict disasters. A human operator "
-    "must review imported alerts and approve or reject every recommendation."
+    "must review external alerts before promotion. MANUAL mode requires operator decisions; AUTO mode creates virtual assignments only."
 )
 
 # SQLite database file (project-relative by default; overridable via RELIEF_DATABASE_PATH).
@@ -52,3 +52,23 @@ GDACS_SYNC_INTERVAL_SECONDS = _read_positive_int(
 USGS_SYNC_INTERVAL_SECONDS = _read_positive_int(
     "RESQ_USGS_SYNC_INTERVAL_SECONDS", 60
 )
+
+
+def _read_positive_float(name: str, default: float, minimum: float = 0.1) -> float:
+    """Read a positive float; malformed or unsafe values use the default."""
+    try:
+        value = float(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if value >= minimum else default
+
+
+def get_llm_settings() -> dict[str, object]:
+    """Return runtime LLM settings; defaults keep the application fully offline."""
+    return {
+        "enabled": _read_bool("LLM_ENABLED", False),
+        "base_url": os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1").strip(),
+        "api_key": os.environ.get("LLM_API_KEY", "").strip(),
+        "model": os.environ.get("LLM_MODEL", "gpt-4o-mini").strip(),
+        "timeout_seconds": _read_positive_float("LLM_TIMEOUT_SECONDS", 8.0),
+    }

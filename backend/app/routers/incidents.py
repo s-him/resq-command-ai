@@ -12,6 +12,8 @@ GET  /api/incidents/{id}/history           -> list recommendations and operator 
 from fastapi import APIRouter, HTTPException, status
 
 from app import (
+    agent_orchestrator,
+    agent_trace_repository,
     incident_lifecycle_repository,
     incident_repository,
     prioritization,
@@ -19,6 +21,8 @@ from app import (
     recommendations,
     resource_repository,
 )
+from app.agent_trace_schemas import AgentTraceList, AgentTraceRun
+from app.event_hub import publish_event
 from app.schemas import (
     Incident,
     IncidentCreate,
@@ -27,6 +31,7 @@ from app.schemas import (
     IncidentStatusUpdate,
     IncidentUpdateEntry,
     IncidentUpdateList,
+    AreaPriorityList,
     PriorityList,
     Recommendation,
 )
@@ -42,7 +47,12 @@ def create_incident(incident: IncidentCreate) -> Incident:
     By the time this function runs, FastAPI has already validated the request
     body against IncidentCreate, so `incident` is guaranteed to be valid.
     """
-    return incident_repository.create_incident(incident)
+    created = incident_repository.create_incident(incident)
+    from app.auto_dispatch_service import try_auto_dispatch_incident
+
+    try_auto_dispatch_incident(created.id)
+    publish_event("incidents.updated", {"incident_id": created.id, "action": "created"})
+    return created
 
 
 @router.get("", response_model=list[Incident])
@@ -65,6 +75,18 @@ def list_open_incidents_by_priority() -> PriorityList:
         disclaimer=prioritization.DISCLAIMER,
         count=len(ranked),
         incidents=ranked,
+    )
+
+
+@router.get("/areas/priority", response_model=AreaPriorityList)
+def list_areas_by_priority() -> AreaPriorityList:
+    """Rank reported location groups using open-incident urgency and total people."""
+    ranked = prioritization.rank_areas(incident_repository.list_open_incidents())
+    return AreaPriorityList(
+        ranking_rules=prioritization.AREA_RANKING_RULES,
+        disclaimer=prioritization.AREA_DISCLAIMER,
+        count=len(ranked),
+        areas=ranked,
     )
 
 
@@ -103,13 +125,50 @@ def generate_incident_recommendation(incident_id: int) -> Recommendation:
     items, unavailable_needs, insufficient_needs, summary = recommendations.build_recommendation(
         incident, available_resources
     )
-    return recommendation_repository.create_recommendation(
+    recommendation = recommendation_repository.create_recommendation(
         incident_id=incident.id,
         items=items,
         unavailable_needs=unavailable_needs,
         insufficient_needs=insufficient_needs,
         summary=summary,
     )
+    publish_event("recommendations.updated", {"incident_id": incident.id, "recommendation_id": recommendation.id})
+    return recommendation
+
+
+@router.post(
+    "/{incident_id}/agent-runs",
+    response_model=AgentTraceRun,
+    status_code=status.HTTP_201_CREATED,
+)
+def run_incident_agent_pipeline(incident_id: int) -> dict:
+    """Run five advisory agents and persist their trace; this does not dispatch."""
+    try:
+        result = agent_orchestrator.run_incident_pipeline(incident_id)
+        publish_event("agents.completed", {"incident_id": incident_id, "run_id": result.get("id")})
+        return result
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/{incident_id}/agent-trace", response_model=AgentTraceList)
+def get_incident_agent_trace(incident_id: int) -> dict:
+    """Return recent persisted agent runs for one incident."""
+    incident = incident_repository.get_incident_by_id(incident_id)
+    if incident is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident {incident_id} not found.",
+        )
+    traces = agent_trace_repository.list_agent_traces(incident_id)
+    return {
+        "incident_id": incident_id,
+        "count": len(traces),
+        "traces": traces,
+    }
 
 
 @router.get("/{incident_id}/history", response_model=IncidentHistory)
@@ -153,6 +212,7 @@ def update_incident_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Incident {incident_id} not found.",
         )
+    publish_event("incidents.updated", {"incident_id": incident_id, "action": "status_changed"})
     return incident_repository.get_incident_by_id(incident_id)
 
 
@@ -182,6 +242,7 @@ def add_incident_operator_update(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Incident {incident_id} not found.",
         )
+    publish_event("incidents.updated", {"incident_id": incident_id, "action": "operator_update"})
     return event
 
 

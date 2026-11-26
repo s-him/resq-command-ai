@@ -10,6 +10,7 @@ const ROUTE_META = {
   incident: { section: "Operations · Incidents", title: "Incident Investigation" },
   resources: { section: "Operations", title: "Resource Inventory" },
   recommendations: { section: "Operations", title: "Operator Decision Centre" },
+  dispatch: { section: "Operations", title: "Dispatch Simulation & Controls" },
   history: { section: "Monitoring", title: "Activity & Audit History" },
   notfound: { section: "Navigation", title: "Page Not Found" },
 };
@@ -21,7 +22,7 @@ const CONNECTION_LABELS = {
 };
 
 export default function Topbar({ route, onOpenMobileNav, onOpenCreateIncident }) {
-  const { health, refreshing, refreshAll } = useData();
+  const { health, liveStatus, refreshing, refreshAll } = useData();
   const now = useNow(30000);
   const meta = ROUTE_META[route.name] || ROUTE_META.dashboard;
   const title =
@@ -58,6 +59,11 @@ export default function Topbar({ route, onOpenMobileNav, onOpenCreateIncident })
         >
           <span className={`conn-dot conn-${health.state}`} aria-hidden="true" />
           <span>{CONNECTION_LABELS[health.state] || "Checking connection"}</span>
+        </div>
+
+        <div className={`live-pill live-pill-${liveStatus}`} role="status" title="Live updates use Server-Sent Events; polling is the fallback">
+          <span className="live-dot" aria-hidden="true" />
+          <span>{liveStatus === "live" ? "LIVE" : liveStatus === "polling" ? "POLLING" : "RECONNECTING"}</span>
         </div>
 
         <span className="topbar-clock tabular" aria-label="Current local time">

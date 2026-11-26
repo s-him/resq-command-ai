@@ -15,6 +15,7 @@ from app.alert_schemas import (
     ExternalAlert,
 )
 from app.schemas import IncidentCreate
+from app.event_hub import publish_event
 
 router = APIRouter(prefix="/api/alerts", tags=["External Alerts"])
 
@@ -72,6 +73,7 @@ def review_external_alert(alert_id: int, request: AlertReviewRequest) -> dict:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"External alert {alert_id} not found.",
         )
+    publish_event("alerts.updated", {"alert_id": alert_id, "action": "reviewed"})
     return alert
 
 
@@ -106,17 +108,24 @@ def promote_reviewed_alert(alert_id: int, incident_data: IncidentCreate) -> dict
 
     alert = alert_repository.get_alert_by_id(alert_id)
     incident = incident_repository.get_incident_by_id(incident_id)
+    from app.auto_dispatch_service import try_auto_dispatch_incident
+
+    try_auto_dispatch_incident(incident_id)
+    publish_event("incidents.updated", {"incident_id": incident_id, "action": "promoted"})
+    publish_event("alerts.updated", {"alert_id": alert_id, "action": "promoted"})
     return {
         "alert": alert,
         "incident": incident,
         "message": (
             f"Reviewed external alert #{alert_id} was linked to incident "
             f"#{incident_id}. The incident is now included in the normal priority "
-            "and resource-recommendation workflows."
+            "and resource-recommendation workflows. If AUTO mode is enabled and the " 
+            "incident meets its threshold, a simulated assignment may also be created."
         ),
         "disclaimer": (
             "The incident fields were supplied or confirmed by an operator. "
             "The existing incident severity score is an unvalidated prototype "
-            "estimate, not emergency guidance. Promotion does not dispatch resources."
+            "estimate, not emergency guidance. AUTO may create only a simulated " 
+            "database assignment; no external emergency service is contacted."
         ),
     }
