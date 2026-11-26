@@ -13,6 +13,7 @@ from app.response_plan_schemas import (
     ResponsePlanStatus,
 )
 from app.schemas import RecommendationStatus
+from app.event_hub import publish_event
 
 
 DISCLAIMER = (
@@ -54,7 +55,9 @@ def create_response_plan(incident_id: int, request: ResponsePlanCreate) -> dict:
         )
 
     try:
-        return response_plan_repository.create_response_plan(incident_id, recommendation)
+        plan = response_plan_repository.create_response_plan(incident_id, recommendation)
+        publish_event("plans.updated", {"plan_id": plan["id"], "incident_id": incident_id, "action": "created"})
+        return plan
     except response_plan_repository.ResponsePlanConflict as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except Exception as exc:
@@ -105,6 +108,8 @@ def decide_response_plan(plan_id: int, request: ResponsePlanDecisionRequest) -> 
     except response_plan_repository.ResponsePlanConflict as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
+    publish_event("plans.updated", {"plan_id": plan["id"], "incident_id": plan["incident_id"], "action": "decision"})
+    publish_event("dispatch.updated", {"plan_id": plan["id"], "incident_id": plan["incident_id"]})
     message = (
         "Simulation approved. Quantities are reserved only in the simulation ledger; "
         "no real dispatch or physical stock change occurred."
@@ -123,7 +128,10 @@ def complete_response_plan(
     request: ResponsePlanCompleteRequest,
 ) -> dict:
     try:
-        return response_plan_repository.complete_response_plan(plan_id, request.note)
+        plan = response_plan_repository.complete_response_plan(plan_id, request.note)
+        publish_event("plans.updated", {"plan_id": plan_id, "incident_id": plan["incident_id"], "action": "completed"})
+        publish_event("dispatch.updated", {"plan_id": plan_id, "incident_id": plan["incident_id"]})
+        return plan
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except response_plan_repository.ResponsePlanConflict as exc:
@@ -138,7 +146,10 @@ def complete_response_plan(
 def recall_response_plan(plan_id: int, request: ResponsePlanCompleteRequest) -> dict:
     """Recall an AUTO simulated deployment and release its virtual reservations."""
     try:
-        return response_plan_repository.recall_response_plan(plan_id, request.note)
+        plan = response_plan_repository.recall_response_plan(plan_id, request.note)
+        publish_event("plans.updated", {"plan_id": plan_id, "incident_id": plan["incident_id"], "action": "recalled"})
+        publish_event("dispatch.updated", {"plan_id": plan_id, "incident_id": plan["incident_id"]})
+        return plan
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except response_plan_repository.ResponsePlanConflict as exc:

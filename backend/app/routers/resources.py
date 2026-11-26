@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app import resource_repository
 from app.schemas import NearbyResourceList, Resource, ResourceCreate, ResourceHistory, ResourceUpdate
+from app.event_hub import publish_event
 
 router = APIRouter(prefix="/api/resources", tags=["Resources"])
 
@@ -24,6 +25,7 @@ def create_resource(resource: ResourceCreate) -> Resource:
     from app.auto_dispatch_service import retry_shortfall_dispatches
 
     retry_shortfall_dispatches()
+    publish_event("resources.updated", {"resource_id": created.id, "action": "created"})
     return created
 
 
@@ -81,6 +83,7 @@ def update_resource(resource_id: int, update: ResourceUpdate) -> Resource:
     from app.auto_dispatch_service import retry_shortfall_dispatches
 
     retry_shortfall_dispatches()
+    publish_event("resources.updated", {"resource_id": resource_id, "action": "updated"})
     return resource
 
 

@@ -14,6 +14,7 @@ from app import (
 from app.schemas import InsufficientNeed, UnavailableNeed
 
 logger = logging.getLogger(__name__)
+from app.event_hub import publish_event
 
 
 def _qualifies(incident, minimum_severity: str) -> bool:
@@ -158,7 +159,8 @@ def auto_dispatch_incident(
 
     # Run the five named agents first. Their output is advisory; allocation remains
     # determined by the existing validated recommendation matcher.
-    agent_orchestrator.run_incident_pipeline(incident_id)
+    agent_run = agent_orchestrator.run_incident_pipeline(incident_id)
+    publish_event("agents.completed", {"incident_id": incident_id, "run_id": agent_run.get("id")})
     resources = resource_repository.list_available_resources()
     items, unavailable, insufficient, summary = recommendations.build_recommendation(
         incident, resources
@@ -168,7 +170,7 @@ def auto_dispatch_incident(
             incident, items, unavailable, insufficient
         )
 
-    return auto_dispatch_repository.create_auto_dispatch(
+    result = auto_dispatch_repository.create_auto_dispatch(
         incident=incident,
         items=items,
         unavailable_needs=unavailable,
@@ -177,6 +179,12 @@ def auto_dispatch_incident(
         allow_shortfall_retry=allow_shortfall_retry,
         actor="system-auto",
     )
+    publish_event("dispatch.updated", {
+        "incident_id": incident_id,
+        "plan_id": result.get("plan_id"),
+        "dispatched": result.get("dispatched"),
+    })
+    return result
 
 
 def try_auto_dispatch_incident(incident_id: int) -> dict[str, Any] | None:

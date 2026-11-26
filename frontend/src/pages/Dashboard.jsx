@@ -3,6 +3,7 @@ import PriorityQueueTable from "../components/dashboard/PriorityQueueTable";
 import StatCard from "../components/dashboard/StatCard";
 import WorkflowOverview from "../components/dashboard/WorkflowOverview";
 import AreaPriorityTable from "../components/dashboard/AreaPriorityTable";
+import DashboardLivePanels from "../components/dashboard/DashboardLivePanels";
 import { SkeletonStatCards } from "../components/common/Skeleton";
 import Icon from "../components/common/Icon";
 import IncidentMapPanel from "../components/incidents/IncidentMapPanel";
@@ -16,6 +17,8 @@ export default function Dashboard({ onOpenCreateIncident }) {
     areaPriority,
     incidents,
     resources,
+    alerts,
+    responsePlans,
     recommendations,
     actions,
     lastUpdated,
@@ -144,6 +147,14 @@ export default function Dashboard({ onOpenCreateIncident }) {
       />
 
       <IncidentMapPanel incidents={openIncidents} resources={resources.data} />
+
+      <DashboardLivePanels
+        alerts={alerts.data}
+        incidents={incidents.data}
+        resources={resources.data}
+        responsePlans={responsePlans.data}
+        onRefresh={refreshAll}
+      />
     </div>
   );
 }

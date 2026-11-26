@@ -731,3 +731,20 @@ previously active deployed quantities before proposing additional units.
 
 All AUTO output is a simulation only. It does not contact emergency services,
 send notifications, move real responders, or modify physical inventory.
+
+
+---
+
+## Real-time event stream (Phase 4)
+
+\`GET /api/events/stream\` is a FastAPI Server-Sent Events endpoint backed by
+\`app/event_hub.py\`. The thread-safe hub sends bounded, JSON-safe invalidation
+events after committed alert, incident, recommendation, resource, response-plan,
+dispatch-setting and agent-run changes. Subscribers are removed when their
+stream closes. A slow subscriber drops its oldest queued event rather than
+blocking application writes.
+
+SSE messages are notifications, not authoritative records. The frontend fetches
+current data through REST. EventSource reconnects automatically, with a
+10-second REST polling fallback while unavailable. The hub is in-process only;
+multi-worker deployments require shared messaging to fan out events.

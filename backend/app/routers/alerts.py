@@ -15,6 +15,7 @@ from app.alert_schemas import (
     ExternalAlert,
 )
 from app.schemas import IncidentCreate
+from app.event_hub import publish_event
 
 router = APIRouter(prefix="/api/alerts", tags=["External Alerts"])
 
@@ -72,6 +73,7 @@ def review_external_alert(alert_id: int, request: AlertReviewRequest) -> dict:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"External alert {alert_id} not found.",
         )
+    publish_event("alerts.updated", {"alert_id": alert_id, "action": "reviewed"})
     return alert
 
 
@@ -109,6 +111,8 @@ def promote_reviewed_alert(alert_id: int, incident_data: IncidentCreate) -> dict
     from app.auto_dispatch_service import try_auto_dispatch_incident
 
     try_auto_dispatch_incident(incident_id)
+    publish_event("incidents.updated", {"incident_id": incident_id, "action": "promoted"})
+    publish_event("alerts.updated", {"alert_id": alert_id, "action": "promoted"})
     return {
         "alert": alert,
         "incident": incident,

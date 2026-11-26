@@ -22,6 +22,7 @@ from app import (
     resource_repository,
 )
 from app.agent_trace_schemas import AgentTraceList, AgentTraceRun
+from app.event_hub import publish_event
 from app.schemas import (
     Incident,
     IncidentCreate,
@@ -50,6 +51,7 @@ def create_incident(incident: IncidentCreate) -> Incident:
     from app.auto_dispatch_service import try_auto_dispatch_incident
 
     try_auto_dispatch_incident(created.id)
+    publish_event("incidents.updated", {"incident_id": created.id, "action": "created"})
     return created
 
 
@@ -123,13 +125,15 @@ def generate_incident_recommendation(incident_id: int) -> Recommendation:
     items, unavailable_needs, insufficient_needs, summary = recommendations.build_recommendation(
         incident, available_resources
     )
-    return recommendation_repository.create_recommendation(
+    recommendation = recommendation_repository.create_recommendation(
         incident_id=incident.id,
         items=items,
         unavailable_needs=unavailable_needs,
         insufficient_needs=insufficient_needs,
         summary=summary,
     )
+    publish_event("recommendations.updated", {"incident_id": incident.id, "recommendation_id": recommendation.id})
+    return recommendation
 
 
 @router.post(
@@ -140,7 +144,9 @@ def generate_incident_recommendation(incident_id: int) -> Recommendation:
 def run_incident_agent_pipeline(incident_id: int) -> dict:
     """Run five advisory agents and persist their trace; this does not dispatch."""
     try:
-        return agent_orchestrator.run_incident_pipeline(incident_id)
+        result = agent_orchestrator.run_incident_pipeline(incident_id)
+        publish_event("agents.completed", {"incident_id": incident_id, "run_id": result.get("id")})
+        return result
     except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -206,6 +212,7 @@ def update_incident_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Incident {incident_id} not found.",
         )
+    publish_event("incidents.updated", {"incident_id": incident_id, "action": "status_changed"})
     return incident_repository.get_incident_by_id(incident_id)
 
 
@@ -235,6 +242,7 @@ def add_incident_operator_update(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Incident {incident_id} not found.",
         )
+    publish_event("incidents.updated", {"incident_id": incident_id, "action": "operator_update"})
     return event
 
 

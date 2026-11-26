@@ -477,3 +477,33 @@ assignments and virtual stock reservations only. It does not contact emergency
 services, send SMS, move real teams/vehicles, or physically deduct inventory.
 The mode switch and emergency pause are operator workflow controls in this
 academic prototype, not authenticated security controls.
+
+
+---
+
+## Real-time dashboard (Phase 4)
+
+The FastAPI backend exposes \`GET /api/events/stream\` as Server-Sent Events.
+A thread-safe in-process event hub broadcasts lightweight change notices after
+alerts arrive or incidents, recommendations, resources, response plans,
+dispatch settings, and agent runs change. The event stream is an invalidation
+signal; the frontend reloads canonical records using the existing REST APIs.
+
+The React data context owns one shared \`EventSource\` connection. The browser
+reconnects automatically; while SSE is unavailable, a 10-second REST polling
+fallback keeps dashboard data current. The top bar shows **LIVE**,
+**RECONNECTING**, or **POLLING**.
+
+The dashboard shows:
+- A newest-first GDACS/USGS alerts feed with provider severity badges.
+- The Leaflet map with severity-coloured incident locations and resource markers.
+- Resource availability by rescue teams, ambulances, shelters and supplies,
+  separating unreserved available stock from active simulated deployments.
+- Active response-plan operations with assigned units, straight-line distance,
+  an explicit unavailable ETA, and Complete/Recall actions.
+- A lightweight SVG incidents-by-hazard chart.
+
+SSE uses a bounded in-process queue and is suitable for this single-process
+academic prototype. It is not a durable event log or a cross-worker broker.
+A multi-worker deployment would need shared messaging. If the browser misses
+an event, reconnect and REST refresh restore current state.

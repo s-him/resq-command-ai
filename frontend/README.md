@@ -73,3 +73,17 @@ the default. AUTO plans show their linked incident/resource assignments and
 allow the operator to Complete or Recall them. All quantities are virtual
 reservations in the prototype ledger; physical inventory is unchanged and no
 real responder is contacted.
+
+
+## Real-time dashboard (Phase 4)
+
+\`DataContext\` owns one shared \`EventSource\` connection to
+\`/api/events/stream\`. When a change notification arrives, it reloads the shared
+incident, alert, area-priority, resource, response-plan and history data. Browser
+reconnect is automatic; a 10-second REST polling fallback runs while SSE is
+unavailable. The top bar displays LIVE, RECONNECTING or POLLING.
+
+Dashboard live panels show the newest-first alert feed, resource units available
+versus deployed, active simulated operations with Complete/Recall, and an SVG
+incident-by-hazard chart. The existing Leaflet map continues to show incident
+and resource markers. Distances are straight-line estimates; ETA is not calculated.

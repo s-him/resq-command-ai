@@ -10,6 +10,7 @@ from app.dispatch_schemas import (
     DispatchSettings,
     DispatchSettingsUpdate,
 )
+from app.event_hub import publish_event
 
 router = APIRouter(prefix="/api/dispatch", tags=["Dispatch Simulation"])
 
@@ -36,6 +37,7 @@ def update_dispatch_settings(payload: DispatchSettingsUpdate) -> dict:
     if settings["mode"] == "auto" and not settings["paused"]:
         auto_dispatch_service.dispatch_existing_eligible_incidents()
         auto_dispatch_service.retry_shortfall_dispatches()
+    publish_event("dispatch.updated", {"action": "settings_changed", "mode": settings["mode"], "paused": settings["paused"]})
     return settings
 
 
@@ -82,4 +84,5 @@ def retry_incident_shortfall(incident_id: int) -> dict:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not result.get("attempted"):
         raise HTTPException(status_code=409, detail=result.get("message", "No retry was performed."))
+    publish_event("dispatch.updated", {"incident_id": incident_id, "action": "shortfall_retry"})
     return result
