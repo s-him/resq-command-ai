@@ -1,6 +1,7 @@
+
 /**
- * Exact enum values accepted by the FastAPI backend (backend/app/schemas.py).
- * The UI shows friendlier labels, but API payloads always use these values.
+ * Exact enum values accepted by the FastAPI backend.
+ * The UI shows friendlier labels, but API payloads use these values.
  */
 
 export const HAZARD_TYPES = [
@@ -25,22 +26,45 @@ export const HELP_TYPES = [
   "other",
 ];
 
-export const RESOURCE_TYPES = ["ambulance", "rescue_team", "shelter", "supply", "other"];
+export const RESOURCE_TYPES = [
+  "ambulance",
+  "rescue_team",
+  "shelter",
+  "supply",
+  "other",
+];
 
-export const AVAILABILITY_STATUSES = ["available", "limited", "unavailable"];
+export const AVAILABILITY_STATUSES = [
+  "available",
+  "limited",
+  "unavailable",
+];
 
-export const INCIDENT_STATUSES = ["open", "resolved", "closed"];
+export const INCIDENT_STATUSES = [
+  "open",
+  "resolved",
+  "closed",
+];
 
-export const RECOMMENDATION_STATUSES = ["pending", "approved", "rejected"];
+export const RECOMMENDATION_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+];
 
 /** Severity levels returned by the backend, most severe first. */
-export const SEVERITY_LEVELS = ["Critical", "High", "Medium", "Low"];
+export const SEVERITY_LEVELS = [
+  "Critical",
+  "High",
+  "Medium",
+  "Low",
+];
 
 export const SEVERITY_COLORS = {
-  Critical: "#D95D59",
-  High: "#D97728",
-  Medium: "#D99A28",
-  Low: "#149C91",
+  Critical: "#DC2626",
+  High: "#EA580C",
+  Medium: "#B7791F",
+  Low: "#15803D",
 };
 
 export const HAZARD_ICONS = {
@@ -74,11 +98,12 @@ export const HELP_ICONS = {
 };
 
 export const STATUS_LABELS = {
-  // incidents
+  // Incidents
   open: "Open",
   resolved: "Resolved",
   closed: "Closed",
-  // recommendations
+
+  // Recommendations
   pending: "Pending review",
   approved: "Approved",
   rejected: "Rejected",
@@ -87,7 +112,8 @@ export const STATUS_LABELS = {
   new: "New alert",
   reviewed: "Reviewed",
   dismissed: "Dismissed",
-  // resource availability
+
+  // Resource availability
   available: "Available",
   limited: "Limited",
   unavailable: "Unavailable",
@@ -98,4 +124,3 @@ export const SAFETY_NOTICE =
 
 export const HUMAN_REVIEW_WARNING =
   "MANUAL mode requires operator review. AUTO mode can create virtual assignments only; neither mode is a real dispatch instruction.";
-

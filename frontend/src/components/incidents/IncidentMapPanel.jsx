@@ -86,11 +86,11 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
     mappedResources.forEach((resource) => {
       const status = resource.availability_status || "unknown";
       const color =
-        status === "available" ? "#0F9D8A" :
-        status === "limited" ? "#D97706" : "#64748B";
+        status === "available" ? "var(--severity-low-text)" :
+        status === "limited" ? "var(--severity-medium-text)" : "var(--text-muted)";
       const marker = L.circleMarker([resource.latitude, resource.longitude], {
         radius: 7,
-        color: "#FFFFFF",
+        color: "var(--card)",
         weight: 2,
         fillColor: color,
         fillOpacity: 0.95,
@@ -122,11 +122,11 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
 
     mapped.forEach((incident) => {
       const level = incident.severity?.level || "Low";
-      const color = SEVERITY_COLORS[level] || "#14B8A6";
+      const color = SEVERITY_COLORS[level] || "var(--severity-low-text)";
 
       const marker = L.circleMarker([incident.latitude, incident.longitude], {
         radius: 9,
-        color: "#101B2D",
+        color: "var(--text-heading)",
         weight: 2,
         fillColor: color,
         fillOpacity: 0.92,
@@ -175,7 +175,7 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
 
         <div className="map-legend" aria-label="Map marker legend">
           <span className="legend-pill">
-            <span className="legend-dot" style={{ backgroundColor: "#0F9D8A" }} />
+            <span className="legend-dot" style={{ backgroundColor: "var(--severity-low-text)" }} />
             <span>Resources</span>
           </span>
           {SEVERITY_LEVELS.map((level) => (
@@ -216,7 +216,7 @@ export default function IncidentMapPanel({ incidents = [], resources = [] }) {
             ` · ${unmappedCount} incident(s) and ${unmappedResourcesCount} resource(s) without coordinates`}
         </span>
         <span className="text-muted">
-          Click a marker to inspect its record · Incident markers use severity colours; resource markers use green/amber/grey
+          Click a marker to inspect its record · Incident markers use severity colours; resource markers use sage/peach/muted status colours
         </span>
       </div>
     </section>

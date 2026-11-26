@@ -23,7 +23,7 @@ export default function SeverityPanel({ severity }) {
   } = severity;
 
   const pct = maxScore > 0 ? Math.min(100, Math.max(0, Math.round((score / maxScore) * 100))) : 0;
-  const accentColor = SEVERITY_COLORS[level] || "#14B8A6";
+  const accentColor = SEVERITY_COLORS[level] || "var(--primary)";
 
   return (
     <section className="surface-card severity-panel">
