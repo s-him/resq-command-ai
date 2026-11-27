@@ -48,6 +48,17 @@ The remaining files are `test_alert_promotion` 6, `test_alert_sources` 5, `test_
 | Unavailable stock | `test_ignores_unavailable_limited_and_zero_quantity_resources` | Pass |
 | Severity level boundaries | `test_level_thresholds` | Pass |
 
+## Postman API collection
+
+Import docs/postman_collection.json into Postman. It is generated from the current
+FastAPI OpenAPI document by backend/scripts/export_postman.py, includes request
+examples from backend/examples/, and defines a baseUrl collection variable
+(default http://127.0.0.1:8000). Regenerate it after API schema changes by running
+python scripts/export_postman.py from the backend directory.
+
+The exporter needs the project's existing backend environment, but does not need
+the API server to be running or any environment variables to be set.
+
 ## Browser walkthrough
 
 Scripted with the flood demo data. It was run by an AI coding assistant, **not** by a
@@ -79,8 +90,10 @@ Map background tiles could not load on the test machine's restricted network.
 - No login or roles.
 - Negation handling covers only a few clear phrasings. Other wording that rules a group
   out still scores points.
-- Approving a recommendation does not reserve stock. Reservation happens at response
-  plan approval, where over-allocation is blocked.
-- A recommendation is a snapshot. If stock changes, generate a new one. Older pending
-  recommendations for the same incident stay in the list.
+- Approving a recommendation rechecks and earmarks available capacity without
+  changing physical quantities. A simulated response plan turns the earmark into an
+  active virtual reservation. Stale approvals return 409 and remain pending.
+- A recommendation remains a snapshot. Approval rechecks current stock; if a gap is
+  found, regenerate it after checking inventory. Older pending recommendations for
+  the same incident stay in the list.
 - Severity weights are not validated; no accuracy is claimed.

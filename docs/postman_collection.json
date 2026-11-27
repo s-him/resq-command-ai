@@ -1,0 +1,1144 @@
+{
+  "info": {
+    "name": "ResQ Command API",
+    "description": "Generated from the FastAPI OpenAPI schema. Academic prototype only: AUTO dispatch and response operations are simulated; this collection does not contact real emergency services.",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Activity History",
+      "item": [
+        {
+          "name": "List Activity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/activity?incident_id={{incident_id}}&alert_type={{alert_type}}&limit=500",
+            "description": "List Activity"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Agent Assessments",
+      "item": [
+        {
+          "name": "Get Alert Assessment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/alerts/assessments/:assessment_id",
+            "description": "Get Alert Assessment"
+          }
+        },
+        {
+          "name": "List Alert Assessments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/alerts/:alert_id/assessments?limit=20",
+            "description": "List immutable assessment snapshots for one external alert."
+          }
+        },
+        {
+          "name": "Create Alert Assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/alerts/:alert_id/assessments",
+            "description": "Run the specialist agents and persist a snapshot for human review."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Demo",
+      "item": [
+        {
+          "name": "Simulate Demo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/demo/simulate",
+            "description": "Inject a labeled sample scenario and run the standard advisory workflow.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dispatch Simulation",
+      "item": [
+        {
+          "name": "List Dispatch Audit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/dispatch/audit?incident_id={{incident_id}}",
+            "description": "List Dispatch Audit"
+          }
+        },
+        {
+          "name": "List Dispatch Deployments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/dispatch/deployments?status={{status}}",
+            "description": "List Dispatch Deployments"
+          }
+        },
+        {
+          "name": "Retry Incident Shortfall",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/dispatch/incidents/:incident_id/retry",
+            "description": "Retry a previously recorded shortfall using only newly unreserved stock."
+          }
+        },
+        {
+          "name": "Get Dispatch Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/dispatch/settings",
+            "description": "Return the persisted MANUAL/AUTO mode, threshold and emergency pause state."
+          }
+        },
+        {
+          "name": "Update Dispatch Settings",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/dispatch/settings",
+            "description": "Persist operator settings. Enabling AUTO processes eligible open incidents once.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "External Alerts",
+      "item": [
+        {
+          "name": "List External Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/alerts?source={{source}}&hazard_type={{hazard_type}}&alert_level={{alert_level}}&review_status={{review_status}}&limit=100&offset=0",
+            "description": "List imported alerts with optional source, hazard, level and review filters.\n\nThe response also carries the prototype's own active alerts and recent\naction history. The filters apply to imported alerts only."
+          }
+        },
+        {
+          "name": "List Alert Sources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/alerts/sources",
+            "description": "Show configured providers and their most recent sync status."
+          }
+        },
+        {
+          "name": "Sync External Alerts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/alerts/sync",
+            "description": "Manually fetch configured public feeds. This does not create incidents.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Promote Reviewed Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/alerts/:alert_id/promote",
+            "description": "Create one incident from a reviewed external alert using operator-supplied facts.\n\nPeople affected, help needed, incident description, hazard type and location\nare explicitly provided by the operator. Provider data is not used to guess\nthese life-safety inputs.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Water entering ground-floor homes near the river bank.\",\n  \"hazard_type\": \"flood\",\n  \"help_needed\": [\n    \"evacuation\",\n    \"food\"\n  ],\n  \"location\": \"Ward 12, Riverside Road\",\n  \"people_affected\": 40,\n  \"reported_at\": \"2026-11-19T10:30:00+05:30\",\n  \"vulnerable_groups\": [\n    \"children\",\n    \"elderly\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Review External Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/alerts/:alert_id/review",
+            "description": "Mark an alert reviewed or dismissed; no incident or dispatch is created.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/health",
+            "description": "Return the status of the API and the database."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Incidents",
+      "item": [
+        {
+          "name": "List Incidents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents",
+            "description": "Return all saved incidents (oldest first), each with its saved severity."
+          }
+        },
+        {
+          "name": "Create Incident - incident_critical.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents",
+            "description": "Create an incident report. It is saved with a new ID, status \"open\",\nand a rule-based severity score (an unvalidated prototype estimate). The\nagent workflow then leaves a pending recommendation for operator review.\n\nBy the time this function runs, FastAPI has already validated the request\nbody against IncidentCreate, so `incident` is guaranteed to be valid.\n\nExample request body loaded from backend/examples/incident_critical.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hazard_type\": \"earthquake\",\n  \"description\": \"Several buildings damaged; trapped residents and many injuries reported.\",\n  \"location\": \"Old Town, Ward 1\",\n  \"reported_at\": \"2026-11-19T11:30:00+05:30\",\n  \"people_affected\": 300,\n  \"help_needed\": [\n    \"rescue\",\n    \"medical\",\n    \"shelter\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Incident - incident_flood.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents",
+            "description": "Create an incident report. It is saved with a new ID, status \"open\",\nand a rule-based severity score (an unvalidated prototype estimate). The\nagent workflow then leaves a pending recommendation for operator review.\n\nBy the time this function runs, FastAPI has already validated the request\nbody against IncidentCreate, so `incident` is guaranteed to be valid.\n\nExample request body loaded from backend/examples/incident_flood.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hazard_type\": \"flood\",\n  \"description\": \"Water entering ground-floor homes near the river bank.\",\n  \"location\": \"Ward 12, Riverside Road\",\n  \"reported_at\": \"2026-11-19T10:30:00+05:30\",\n  \"people_affected\": 40,\n  \"help_needed\": [\n    \"evacuation\",\n    \"food\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Incident - incident_high.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents",
+            "description": "Create an incident report. It is saved with a new ID, status \"open\",\nand a rule-based severity score (an unvalidated prototype estimate). The\nagent workflow then leaves a pending recommendation for operator review.\n\nBy the time this function runs, FastAPI has already validated the request\nbody against IncidentCreate, so `incident` is guaranteed to be valid.\n\nExample request body loaded from backend/examples/incident_high.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hazard_type\": \"building_collapse\",\n  \"description\": \"Part of an apartment block collapsed; people may be trapped and injured.\",\n  \"location\": \"Sector 9, Lake View Apartments\",\n  \"reported_at\": \"2026-11-19T11:15:00+05:30\",\n  \"people_affected\": 120,\n  \"help_needed\": [\n    \"medical\",\n    \"shelter\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Incident - incident_low.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents",
+            "description": "Create an incident report. It is saved with a new ID, status \"open\",\nand a rule-based severity score (an unvalidated prototype estimate). The\nagent workflow then leaves a pending recommendation for operator review.\n\nBy the time this function runs, FastAPI has already validated the request\nbody against IncidentCreate, so `incident` is guaranteed to be valid.\n\nExample request body loaded from backend/examples/incident_low.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hazard_type\": \"flood\",\n  \"description\": \"Shallow water on a side street; a few families need drinking water.\",\n  \"location\": \"Ward 3, Market Lane\",\n  \"reported_at\": \"2026-11-19T11:00:00+05:30\",\n  \"people_affected\": 5,\n  \"help_needed\": [\n    \"water\",\n    \"food\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Incident - incident_tie_fewer_people.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents",
+            "description": "Create an incident report. It is saved with a new ID, status \"open\",\nand a rule-based severity score (an unvalidated prototype estimate). The\nagent workflow then leaves a pending recommendation for operator review.\n\nBy the time this function runs, FastAPI has already validated the request\nbody against IncidentCreate, so `incident` is guaranteed to be valid.\n\nExample request body loaded from backend/examples/incident_tie_fewer_people.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hazard_type\": \"landslide\",\n  \"description\": \"Mud slid onto a hillside road; a few injured people need first aid.\",\n  \"location\": \"Hill Road, Ward 7\",\n  \"reported_at\": \"2026-11-19T10:45:00+05:30\",\n  \"people_affected\": 12,\n  \"help_needed\": [\n    \"medical\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Incident - incident_tie_older.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents",
+            "description": "Create an incident report. It is saved with a new ID, status \"open\",\nand a rule-based severity score (an unvalidated prototype estimate). The\nagent workflow then leaves a pending recommendation for operator review.\n\nBy the time this function runs, FastAPI has already validated the request\nbody against IncidentCreate, so `incident` is guaranteed to be valid.\n\nExample request body loaded from backend/examples/incident_tie_older.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hazard_type\": \"flood\",\n  \"description\": \"Families stranded on rooftops after the canal overflowed.\",\n  \"location\": \"Canal Colony, Ward 14\",\n  \"reported_at\": \"2026-11-19T09:00:00+05:30\",\n  \"people_affected\": 40,\n  \"help_needed\": [\n    \"rescue\",\n    \"water\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Areas By Priority",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/areas/priority",
+            "description": "Rank reported location groups using open-incident urgency and total people."
+          }
+        },
+        {
+          "name": "List Open Incidents By Priority",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/priority",
+            "description": "Return open incidents ordered by priority, highest first.\n\nOrder: severity score (high first), then people affected (more first),\nthen reported_at (older first), then ID. Each incident includes its rank\nand a short explanation. Resolved and closed incidents are not included."
+          }
+        },
+        {
+          "name": "Get Incident",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id",
+            "description": "Return a single saved incident by ID, or 404 if it does not exist."
+          }
+        },
+        {
+          "name": "Run Incident Agent Pipeline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id/agent-runs",
+            "description": "Run five advisory agents and persist their trace; this does not dispatch."
+          }
+        },
+        {
+          "name": "Get Incident Agent Trace",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id/agent-trace",
+            "description": "Return recent persisted agent runs for one incident."
+          }
+        },
+        {
+          "name": "Get Incident History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id/history",
+            "description": "Return all saved recommendations and operator decision history for an incident."
+          }
+        },
+        {
+          "name": "Generate Incident Recommendation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id/recommendation",
+            "description": "Generate and save a pending resource recommendation for an incident.\n\nMatches the incident's help_needed list against available resources with\npositive quantity. Does NOT reduce resource quantities; a human operator\nmust review and approve or reject the suggestion."
+          }
+        },
+        {
+          "name": "Update Incident Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id/status",
+            "description": "Move an incident through the operator-managed lifecycle.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Incident Operational Updates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id/updates",
+            "description": "Return status changes and operator notes for an incident."
+          }
+        },
+        {
+          "name": "Add Incident Operator Update",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id/updates",
+            "description": "Append an operational note to the incident timeline.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Live Events",
+      "item": [
+        {
+          "name": "Stream Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/events/stream",
+            "description": "Stream state-change notifications; clients reload canonical REST data."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recommendations",
+      "item": [
+        {
+          "name": "Decide On Action - decision_approve.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/actions/:action_id/decision",
+            "description": "Alias for /api/recommendations/{id}/decision; action_id is the recommendation ID.\n\nExample request body loaded from backend/examples/decision_approve.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approved\",\n  \"note\": \"Ambulance suggestion matches Ward 9 medical need; logged for demo.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Decide On Action - decision_reject.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/actions/:action_id/decision",
+            "description": "Alias for /api/recommendations/{id}/decision; action_id is the recommendation ID.\n\nExample request body loaded from backend/examples/decision_reject.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"rejected\",\n  \"note\": \"Holding off until shelter availability is confirmed.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Recommendation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recommendations/:recommendation_id",
+            "description": "Return a single recommendation, including its decision details if reviewed."
+          }
+        },
+        {
+          "name": "Decide On Recommendation - decision_approve.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recommendations/:recommendation_id/decision",
+            "description": "Record an operator's \"approved\" or \"rejected\" decision on a pending recommendation.\n\nSaves the decision, optional note, and action-history entry. Approval rechecks\ncurrent stock and earmarks capacity without changing physical inventory.\n\nExample request body loaded from backend/examples/decision_approve.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approved\",\n  \"note\": \"Ambulance suggestion matches Ward 9 medical need; logged for demo.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Decide On Recommendation - decision_reject.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recommendations/:recommendation_id/decision",
+            "description": "Record an operator's \"approved\" or \"rejected\" decision on a pending recommendation.\n\nSaves the decision, optional note, and action-history entry. Approval rechecks\ncurrent stock and earmarks capacity without changing physical inventory.\n\nExample request body loaded from backend/examples/decision_reject.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"rejected\",\n  \"note\": \"Holding off until shelter availability is confirmed.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Resources",
+      "item": [
+        {
+          "name": "List Resources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resources",
+            "description": "Return all registered resources (oldest first)."
+          }
+        },
+        {
+          "name": "Create Resource - resource_ambulance.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resources",
+            "description": "Register a resource in SQLite and return it with its new ID.\n\nBy the time this function runs, FastAPI has already validated the request\nbody against ResourceCreate, so `resource` is guaranteed to be valid.\n\nExample request body loaded from backend/examples/resource_ambulance.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resource_type\": \"ambulance\",\n  \"name\": \"City Hospital Ambulance Unit A\",\n  \"quantity_available\": 3,\n  \"location\": \"Central Depot, Ward 4\",\n  \"availability_status\": \"available\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create Resource - resource_shelter.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resources",
+            "description": "Register a resource in SQLite and return it with its new ID.\n\nBy the time this function runs, FastAPI has already validated the request\nbody against ResourceCreate, so `resource` is guaranteed to be valid.\n\nExample request body loaded from backend/examples/resource_shelter.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resource_type\": \"shelter\",\n  \"name\": \"Community Hall Emergency Shelter\",\n  \"quantity_available\": 150,\n  \"location\": \"Ward 12, High School Ground\",\n  \"availability_status\": \"available\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Nearby Resources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resources/nearby?latitude={{latitude}}&longitude={{longitude}}&radius_km=25",
+            "description": "Find available, geocoded resources within a straight-line distance."
+          }
+        },
+        {
+          "name": "Update Resource",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resources/:resource_id",
+            "description": "Update resource details while protecting active simulation reservations.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Resource History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resources/:resource_id/history",
+            "description": "Return the registration and inventory-change audit history for a resource."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Response Plan Simulation",
+      "item": [
+        {
+          "name": "Create Response Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/incidents/:incident_id/response-plans",
+            "description": "Create a pending simulation plan from an already-approved recommendation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List Response Plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/response-plans?status={{status}}",
+            "description": "List Response Plans"
+          }
+        },
+        {
+          "name": "Get Response Plan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/response-plans/:plan_id",
+            "description": "Get Response Plan"
+          }
+        },
+        {
+          "name": "Complete Response Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/response-plans/:plan_id/complete",
+            "description": "Complete Response Plan",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Decide Response Plan - decision_approve.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/response-plans/:plan_id/decision",
+            "description": "Decide Response Plan\n\nExample request body loaded from backend/examples/decision_approve.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approved\",\n  \"note\": \"Ambulance suggestion matches Ward 9 medical need; logged for demo.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Decide Response Plan - decision_reject.json",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/response-plans/:plan_id/decision",
+            "description": "Decide Response Plan\n\nExample request body loaded from backend/examples/decision_reject.json.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"rejected\",\n  \"note\": \"Holding off until shelter availability is confirmed.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Recall Response Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/response-plans/:plan_id/recall",
+            "description": "Recall an AUTO simulated deployment and release its virtual reservations.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Root",
+      "item": [
+        {
+          "name": "Root",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/",
+            "description": "Friendly landing message pointing to the docs and health check."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    }
+  ]
+}

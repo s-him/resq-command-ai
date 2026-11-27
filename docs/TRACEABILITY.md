@@ -32,6 +32,12 @@ All paths in synopsis section 7.1 are available. `POST /api/resources` adds a re
 updates use `PATCH /api/resources/{id}`. `POST /api/actions/{id}/decision` takes the
 recommendation ID and is the same operation as `POST /api/recommendations/{id}/decision`.
 
+## Postman collection
+
+Import docs/postman_collection.json into Postman. It is generated from
+app.openapi() by backend/scripts/export_postman.py, includes checked-in request
+bodies from backend/examples/, and uses a collection variable named baseUrl.
+
 ## Data design differences
 
 Recommendations are stored as a header (`recommendations`) plus one row per resource
