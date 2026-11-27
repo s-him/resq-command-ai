@@ -49,7 +49,9 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # Backend pytest suite (current count reported by CI) (each uses a temporary SQLite DB)
+│   ├── scripts/export_postman.py    # Generate docs/postman_collection.json from app.openapi()
+│   ├── scripts/llm_smoke_test.py    # Optional configured-provider smoke test
+│   ├── tests/                       # Backend pytest suite (282 tests at this revision; temporary SQLite DBs)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -71,10 +73,15 @@ This repository contains a full-stack academic decision-support prototype:
 
 ---
 
+## Postman API collection
+
+docs/postman_collection.json is a Postman v2.1 collection generated from the current FastAPI OpenAPI schema. It includes request bodies from backend/examples/ and uses a collection variable baseUrl defaulting to http://127.0.0.1:8000. Regenerate it from the repository root with backend/.venv/bin/python backend/scripts/export_postman.py (or run python scripts/export_postman.py from backend/).
+
 ## Project documents
 
-- [Requirement traceability (FR-1–6, NFR-1–5)](docs/TRACEABILITY.md)
+- [Requirement traceability (FR-1–7, NFR-1–7)](docs/TRACEABILITY.md)
 - [Test report](docs/TEST_REPORT.md)
+- [Postman API collection](docs/postman_collection.json) — import into Postman; generated from FastAPI OpenAPI.
 - [Usability review form](docs/USABILITY_REVIEW.md)
 - [Final report draft](docs/FINAL_REPORT.md)
 
@@ -150,7 +157,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations 001–015 to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields; migration 015 adds the optional vulnerable_groups JSON list with an empty default for all existing incidents. Existing incident data is preserved and old rows are rescored at startup under the current rules version.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations 001–015 to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields. Migration 015 adds incidents.vulnerable_groups, an optional JSON list of children, elderly, hospital, school, pregnant_women, and disabled; existing rows receive an empty list. Existing incident data is preserved and old rows are rescored at startup under demo-rules-v4.
 
 ---
 
@@ -295,6 +302,10 @@ The nearby resource API is `GET /api/resources/nearby?latitude=28.6139&longitude
 
 Straight-line distance is not road distance or travel time. This stage does not model flood/cyclone/earthquake impact boundaries, estimate affected population, or claim that registered resources are verified or deployable.
 
+### Demonstration allocation assumptions
+
+The rule-based matcher uses separate illustrative ratios: one rescue-team unit per 200 reported people, one ambulance per 100, one shelter/supply unit per person, and one other resource unit per 25 people. These are unvalidated academic demo assumptions, not real staffing standards or emergency-response guidance. The cyclone/flood/earthquake demo pools are sized to show partial shortages; existing demo pools are reconciled on repeat runs while preserving active virtual assignments.
+
 ---
 
 ## Human-gated response plan simulation (Stage 4)
@@ -312,6 +323,8 @@ A response plan can be created only from a resource recommendation that has alre
 | POST | `/api/response-plans/{plan_id}/complete` | Complete a simulation and release reservations |
 
 The frontend exposes this workflow under **Dispatch Simulation**. Each plan records its resource assignments, operator decisions, notes and timestamps.
+
+Before an operator can approve a pending recommendation, the API rechecks every item inside the same BEGIN IMMEDIATE transaction. It subtracts active simulated response-plan reservations, deployed AUTO assignments and other approved recommendation holds. If current stock cannot cover an item, the API returns HTTP 409 with the resource name and available quantity; the recommendation remains pending. Rejection does not require available stock. Approval earmarks capacity without changing physical quantities; approving the response plan turns the earmark into a virtual reservation.
 
 ---
 
@@ -359,6 +372,8 @@ RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.s
 
 The intervals must be at least 30 seconds; invalid or smaller values fall back to defaults. Manual **Sync Public Feeds** remains available. Manual and scheduled syncs for the same provider are serialized so they cannot race one another.
 
+A GDACS or USGS outage does not stop the application or erase previously saved alerts. The first failure in an outage streak emits one short provider warning; retries use capped exponential backoff and do not spam tracebacks. GET /api/alerts/sources exposes each provider's status (ok or offline), offline_since, last_error, failure_count, and retry_after_seconds. A successful fetch clears the offline state. The Alerts page and dashboard Live Alerts panel show 'Feeds offline - using saved/demo data' while either provider is offline.
+
 ---
 
 ## Resource readiness and inventory control (Stage 8)
@@ -398,7 +413,7 @@ A separate incident-level workflow now runs five named agents in order: **Monito
 - **ResourceAllocationAgent** calls the existing nearest/available-resource matcher and reports its assignments and shortfalls. LLM text cannot change resource IDs or quantities.
 - **NotificationAgent** prepares the high-severity alert, summarizes the validated outputs and states the next human review step. Database triggers record every action in `action_log`.
 
-Every new report (manual, promoted or demo) starts this pipeline and then gets a **pending** recommendation. Nothing is approved or reserved without an operator.
+Every new report (manual, promoted or demo) runs the five-agent pipeline. In MANUAL mode it receives a pending recommendation for operator review and approval. Only when AUTO is explicitly enabled by the backend environment can qualifying incidents create virtual assignments without that manual decision; no physical stock is changed and no real responder is contacted.
 
 Each run stores input summary, agent output, mode (llm or rules), rationale, confidence field, per-agent duration, total duration, and generation time. The confidence field is a prototype display value, not a calibrated probability.
 
@@ -473,7 +488,7 @@ Hazard signal bands include GDACS-style `green` / `orange` / `red` alert levels,
 
 Open incidents retain the deterministic order **severity score → people affected → earlier report time → ID**. The new `GET /api/incidents/areas/priority` endpoint groups open incidents by the recorded location string (trimmed and matched case-insensitively), then ranks areas by highest individual incident score, total reported people affected, earliest report, and top incident ID. It does not geocode locations, infer administrative boundaries, or query population data.
 
-Older incidents with a previous or missing rules version are recalculated at startup using the stored incident fields and migration 012 metadata columns. No incident is deleted. The new area view is shown on the main dashboard and can be refreshed with the rest of the dashboard data.
+Older incidents with a previous or missing rules version are recalculated at startup using the stored incident fields, migration 012 hazard metadata and migration 015 vulnerable-group field. No incident is deleted. The new area view is shown on the main dashboard and can be refreshed with the rest of the dashboard data.
 
 
 ---

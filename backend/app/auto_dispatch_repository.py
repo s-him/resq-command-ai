@@ -1,8 +1,6 @@
 """Atomic persistence for rule-validated automatic dispatch simulations."""
 
 import json
-import sqlite3
-from collections import defaultdict
 
 from app.database import get_connection
 from app.schemas import utc_now

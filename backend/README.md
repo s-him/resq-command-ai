@@ -4,7 +4,7 @@
 > - Imports read-only public alert data from GDACS (multi-hazard) and USGS (earthquakes), alongside manually entered reports.
 > - It is **not** a real emergency system and does **not** connect to emergency services or live dispatch systems.
 > - It does **not** predict disasters.
-> - A **human operator** must approve or reject every recommendation.
+> - In MANUAL mode a human operator approves or rejects recommendations. Explicitly enabled AUTO mode may create virtual assignments only; it does not dispatch real responders.
 
 This backend provides a FastAPI API, SQLite persistence, manual incident reporting, prototype severity scoring, resource recommendations, operator decision logging, read-only public alert ingestion, specialist-agent assessment, proximity-aware resource matching, and simulation-only response plans. External alerts are stored separately from incidents until an operator reviews them.
 
@@ -49,6 +49,7 @@ backend/
 │       └── recommendations.py  # GET /api/recommendations/{id}, POST /{id}/decision
 ├── data/                   # The SQLite file (relief.db) is created here automatically
 │   └── .gitkeep
+├── scripts/                 # Postman OpenAPI exporter and optional LLM smoke test
 ├── examples/
 │   ├── incident_flood.json    # Sample incident (scores High, 55)
 │   ├── incident_low.json      # Sample incident (scores Low, 20)
@@ -256,7 +257,7 @@ and return six independently explained factors. Their maximum values sum to
 | `hazard_type` | 10 | Flood/fire/landslide: 8; earthquake/cyclone/building collapse: 10; chemical spill: 9; other: 3 |
 | `hazard_signal` | 15 | Provider level green: 4, orange: 10, red: 15; earthquake magnitude, cyclone category/wind, or flood-water depth bands |
 | `event_recency` | 15 | Under 1 hour: 15; up to 6 hours: 12; up to 24 hours: 9; up to 72 hours: 5; older/missing/future: 0 |
-| `vulnerable_population` | 5 | Explicit mention of hospital, school, elderly, children, infants or care settings in description/location: 5; otherwise 0 |
+| vulnerable_population | 5 | Explicit vulnerable_groups selections (children, elderly, hospital, school, pregnant_women, disabled) take precedence; description/location keywords are used only when the list is empty |
 
 When provider alert level and a supported measurement are both present, the
 strongest applicable hazard-signal band is used once, not added together.
@@ -270,10 +271,12 @@ The severity level thresholds are unchanged:
 0–24 **Low** · 25–49 **Medium** · 50–74 **High** · 75–100 **Critical**.
 
 The API response includes the numeric score, level, all six factors and their
-reasons, rules version `demo-rules-v3`, and a clear prototype disclaimer.
+reasons, rules version demo-rules-v4, and a clear prototype disclaimer.
 Clients cannot submit their own severity score.
 
 ### Hazard-signal inputs
+
+Manual incident requests may include optional vulnerable_groups (empty by default): children, elderly, hospital, school, pregnant_women, and disabled. Explicit selections take precedence over narrative keywords and retain the 5-point maximum.
 
 Manual incident requests may include optional `hazard_magnitude` and
 `hazard_magnitude_unit` as a pair, plus optional `provider_alert_level`
@@ -283,9 +286,9 @@ Values remain source evidence, not verified measurements.
 
 ### Existing database upgrade
 
-Migration 012 adds the optional event time, magnitude, magnitude unit and provider alert-level incident columns. During startup,
+Migration 012 adds the optional event time, magnitude, magnitude unit and provider alert-level incident columns. Migration 015 adds incidents.vulnerable_groups as JSON text with an empty-list default for existing rows; accepted values are children, elderly, hospital, school, pregnant_women, and disabled.
 `fill_missing_severity()` recomputes incidents whose saved rules version is
-missing or not `demo-rules-v3`, using the data already stored. Incident IDs,
+missing or not `demo-rules-v4`, using the data already stored. Incident IDs,
 reported fields, status, recommendations and audit history are preserved.
 
 ### Affected-area priority
@@ -381,8 +384,7 @@ curl.exe -X POST http://127.0.0.1:8000/api/incidents/1/recommendation
 | GET    | `/api/recommendations/{recommendation_id}`    | View a recommendation and its recorded decision |
 | GET    | `/api/incidents/{incident_id}/history`        | View all recommendations and operator action history for an incident |
 
-Resource quantities are **not changed** when approving or rejecting — decisions
-are recorded for prototype review and auditability only.
+Physical resource quantities are not changed by an approve/reject decision. Approval rechecks all recommendation items under BEGIN IMMEDIATE, subtracting active simulated reservations, deployed AUTO assignments, and other approved recommendation holds. If current availability is insufficient, the API returns HTTP 409 naming the resource and available quantity, and leaves the recommendation pending. Rejection succeeds regardless of stock. Successful approval earmarks capacity; approving a response plan converts that hold to a virtual reservation.
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/api/recommendations/1/decision -H "Content-Type: application/json" -d "@examples/decision_approve.json"
@@ -605,7 +607,7 @@ The page refreshes its local API view every 60 seconds. The backend also synchro
 |---|---|---|
 | POST | `/api/alerts/{alert_id}/promote` | Create and link one open incident from a reviewed alert |
 
-Promotion is rejected with HTTP 409 unless the external alert is already `reviewed` and has no linked incident. The request body is the existing `IncidentCreate` schema: `hazard_type`, `description`, `location`, `reported_at`, `people_affected`, `help_needed`, and optional paired `latitude` / `longitude`.
+Promotion is rejected with HTTP 409 unless the external alert is already reviewed and has no linked incident. The IncidentCreate request accepts hazard_type, description, location, reported_at, people_affected, help_needed, optional vulnerable_groups (children, elderly, hospital, school, pregnant_women, disabled), and optional paired latitude / longitude.
 
 The source alert and incident are updated inside one `BEGIN IMMEDIATE` transaction. The incident gets the existing prototype severity calculation and enters the existing incident priority workflow. The alert stores `linked_incident_id` and `linked_at`; a second promotion is rejected so one external event cannot create duplicate incidents.
 
@@ -629,7 +631,7 @@ Override refresh intervals (seconds):
 RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.sh
 ```
 
-Both intervals must be at least 30 seconds. `GET /api/alerts/sources` reports whether auto-sync is enabled and the configured interval. The browser's 60-second refresh only reloads local database content; provider data is refreshed by the backend loops. Manual sync remains available, and syncs for one provider are serialized.
+Both intervals must be at least 30 seconds. GET /api/alerts/sources reports the configured interval and per-provider health: status (ok/offline), offline_since, last_error, failure_count, and retry_after_seconds. Each provider logs one short warning at the start of an outage streak, then uses capped exponential retry backoff without traceback or per-retry warning spam. A successful sync clears the offline state. The Alerts page and dashboard Live Alerts panel show 'Feeds offline - using saved/demo data' while a provider is offline. Saved alerts remain available; the browser refresh only reloads local database content. Manual sync remains available, and syncs for one provider are serialized.
 
 ---
 
@@ -788,3 +790,15 @@ adds triggers that record new actions. For external alerts reviewed before the
 upgrade, only the latest review was stored, so only that one is copied.
 Open incidents are re-scored on every read so recency stays current; resolved
 and closed incidents keep their score from the time they left the open state.
+
+
+## Postman collection and LLM smoke test
+
+From the backend directory, regenerate the repository Postman collection with
+python scripts/export_postman.py. The generated v2.1 collection is saved at
+docs/postman_collection.json and includes example bodies from examples/.
+
+The optional configured-provider check is python scripts/llm_smoke_test.py.
+It skips without creating an incident when LLM is disabled or no key is supplied.
+A configured-provider run creates one clearly labeled SIMULATED incident and
+prints each agent mode and rationale. Never commit provider keys.

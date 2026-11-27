@@ -2,6 +2,8 @@
 
 **Final project report (draft)** · GLA University · B.Tech CS (AI/ML) · 2026-2027
 
+> ACADEMIC PROTOTYPE | DEMO DATA IS SIMULATED | AUTO DISPATCH IS VIRTUAL | NOT FOR REAL EMERGENCIES
+
 **Team:** Kinjal Mishra, Himanshu Saini, Jatin Kumar, Jayant Choudhary
 **Guides:** Mr. Preshit Desai and Ms. Anushka Shukla
 
@@ -10,11 +12,7 @@
 
 ## 1. Abstract
 
-This academic prototype organises disaster incident reports, scores their severity with
-documented rules, ranks them, and recommends resources for an operator to approve or
-reject. A React dashboard shows incidents, a Leaflet map, resources, alerts and action
-history. A FastAPI service coordinates five agents and stores records in SQLite. It is
-decision support only and is not connected to real emergency services.
+This academic prototype supports reports for hazards such as cyclones, floods and earthquakes. It integrates GDACS/USGS public alerts with manually entered reports, runs five incident agents, calculates rule-based severity, prioritises affected areas, and recommends rescue teams, ambulances, shelters and supplies. Recommendation approval revalidates current stock. Optional AUTO creates virtual assignments only. A real-time React dashboard presents alerts, incident/resource locations, availability and simulated response operations through SSE. It is not connected to real emergency services.
 
 ## 2. Problem and objectives
 
@@ -41,22 +39,21 @@ suggestions. It is off by default and cannot change scores, ranking or allocatio
 
 ## 4. Workflow
 
-1. An operator submits a report.
+1. An operator reviews an external GDACS/USGS alert or submits a manual report, optionally specifying vulnerable groups at risk.
 2. It is validated, normalised, saved and scored.
 3. The agents run and a pending recommendation is created.
-4. The operator approves or rejects it.
+4. Approval rechecks current resource availability in a transaction; a stale or over-allocated request returns HTTP 409 and remains pending. Rejection does not require available stock.
 5. For an approved one, the operator creates a response plan and approves it, which
    reserves stock in the simulation ledger.
 6. Alerts update and the actions are recorded.
 
-An optional AUTO simulation exists from earlier development. It is disabled by default
-because it skips human review.
+AUTO simulation remains available as an explicit opt-in. It creates only virtual database assignments and reservations; no real responder, ambulance or shelter is dispatched.
 
 ## 5. Method
 
 **Severity (0–100):** people affected (35), immediate help (20), hazard type (10),
 hazard signal (15), recency (15), vulnerable population (5). Levels: Low below 25,
-Medium from 25, High from 50, Critical from 75.
+Medium from 25, High from 50, Critical from 75. The vulnerable-population factor remains capped at 5: explicitly reported children, elderly, hospital, school, pregnant_women or disabled groups take precedence, while description/location keywords remain the fallback when no explicit group is selected.
 
 **Priority:** score, then people affected, then earlier report time, then lower ID.
 
@@ -74,7 +71,7 @@ Git and GitHub.
 
 ## 7. Testing
 
-On 26 November 2026, 260 backend tests passed and the frontend built successfully.
+On 27 November 2026, 282 backend tests passed (one existing Starlette/httpx deprecation warning) and the frontend production build passed. See TEST_REPORT.md for coverage and manual verification limitations.
 See `TEST_REPORT.md` for coverage and gaps. The classmate usability review is pending.
 
 ## 8. Screenshots
@@ -95,15 +92,11 @@ captured; retake the map views with an internet connection.
 
 ## 9. Limitations
 
-No login or roles; unvalidated severity weights and allocation ratios; straight-line
-distances only; keyword-based vulnerability detection; user-entered or sample data; not
-suitable for real emergency use.
+No login or roles; unvalidated severity weights and demonstration allocation ratios; straight-line distances only; vulnerable groups are operator-reported with keyword fallback only when no groups are selected; live resource inventory integration is absent; not suitable for real emergency use.
 
 ## 10. Future work
 
-Role-based login, verified data feeds, road-distance estimates, map clustering,
-multilingual and offline support, and model evaluation if a suitable labelled dataset
-becomes available.
+Role-based login, verified resource inventory integrations, road-distance estimates, map clustering, multilingual support, shared health state for multi-worker feed sync, and model evaluation if a suitable labelled dataset becomes available.
 
 ## 11. References
 
