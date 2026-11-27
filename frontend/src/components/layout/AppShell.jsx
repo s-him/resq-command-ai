@@ -56,7 +56,7 @@ export default function AppShell({ route, onOpenCreateIncident, children }) {
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenCreateIncident={onOpenCreateIncident}
         />
-       
+
         <main className="app-content" id="main-content">
           {children}
         </main>
