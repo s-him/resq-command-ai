@@ -8,7 +8,7 @@ touch the real data/relief.db and never affect each other.
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config, main as main_module
+from app import alert_service, config, main as main_module
 from app.main import app
 
 
@@ -16,6 +16,7 @@ from app.main import app
 def disable_background_alert_sync(monkeypatch):
     """Keep the test suite offline; feed sync endpoints are mocked in API tests."""
     monkeypatch.setattr(main_module, "ALERT_AUTO_SYNC_ENABLED", False)
+    alert_service.reset_provider_statuses()
     monkeypatch.setenv("LLM_ENABLED", "false")
     monkeypatch.delenv("RESQ_ALLOW_AUTO_DISPATCH", raising=False)
 

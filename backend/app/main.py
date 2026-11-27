@@ -45,13 +45,7 @@ async def _run_provider_sync_loop(source: str, interval_seconds: int) -> None:
         try:
             result = await asyncio.to_thread(alert_service.sync_sources, [source])
             source_result = result["sources"][0]
-            if source_result["status"] == "failed":
-                logger.warning(
-                    "Automatic %s sync failed: %s",
-                    source.upper(),
-                    source_result["error_message"],
-                )
-            else:
+            if source_result["status"] == "success":
                 logger.info(
                     "Automatic %s sync complete: fetched=%s new=%s updated=%s",
                     source.upper(),
@@ -64,7 +58,8 @@ async def _run_provider_sync_loop(source: str, interval_seconds: int) -> None:
         except Exception:
             logger.exception("Unexpected automatic %s sync error", source.upper())
 
-        await asyncio.sleep(interval_seconds)
+        retry_delay = alert_service.retry_delay_seconds(source, interval_seconds)
+        await asyncio.sleep(retry_delay)
 
 
 @asynccontextmanager

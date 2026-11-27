@@ -434,6 +434,12 @@ export default function Alerts() {
         </div>
       </section>
 
+      {sources.some((source) => source.status === "offline") && (
+        <p className="feed-offline-indicator" role="status">
+          Feeds offline - using saved/demo data
+        </p>
+      )}
+
       <div className="review-banner">
         <Icon name="shield" size={16} />
         <span>Imported alerts are unverified reports, not confirmed incidents or emergency instructions. Agent assessments support human review only; they do not create incidents or dispatch resources.</span>

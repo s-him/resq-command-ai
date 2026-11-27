@@ -25,6 +25,7 @@ export default function Dashboard({ onOpenCreateIncident }) {
     incidents,
     resources,
     alerts,
+    feedSources,
     activeAlerts,
     responsePlans,
     recommendations,
@@ -211,6 +212,7 @@ export default function Dashboard({ onOpenCreateIncident }) {
 
       <DashboardLivePanels
         alerts={alerts.data}
+        feedSources={feedSources.data}
         incidents={incidents.data}
         resources={resources.data}
         responsePlans={responsePlans.data}

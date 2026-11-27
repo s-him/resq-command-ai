@@ -134,3 +134,76 @@ def test_review_requires_existing_alert(client):
 def test_invalid_sync_source_is_rejected(client):
     response = client.post("/api/alerts/sync", json={"sources": ["made-up-feed"]})
     assert response.status_code == 422
+
+
+def test_provider_failure_logs_once_exposes_offline_status_and_recovers(
+    client, monkeypatch, caplog
+):
+    import logging
+
+    from app.alert_sources import FeedFetchError
+
+    def unavailable(_source):
+        raise FeedFetchError("network unreachable")
+
+    monkeypatch.setattr(alert_service.alert_sources, "fetch_alerts", unavailable)
+    with caplog.at_level(logging.WARNING, logger="app.alert_service"):
+        first = client.post("/api/alerts/sync", json={"sources": ["gdacs"]})
+        second = client.post("/api/alerts/sync", json={"sources": ["gdacs"]})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["sources"][0]["status"] == "failed"
+    assert second.json()["sources"][0]["status"] == "failed"
+    warnings = [
+        record for record in caplog.records
+        if record.name == "app.alert_service" and record.levelno == logging.WARNING
+    ]
+    assert len(warnings) == 1
+    assert "GDACS feed offline" in warnings[0].message
+    assert not warnings[0].exc_info
+
+    source = next(
+        item for item in client.get("/api/alerts/sources").json()
+        if item["source"] == "gdacs"
+    )
+    assert source["status"] == "offline"
+    assert source["offline_since"]
+    assert source["failure_count"] == 2
+    assert source["retry_after_seconds"] >= source["configured_sync_interval_seconds"]
+
+    monkeypatch.setattr(alert_service.alert_sources, "fetch_alerts", lambda _source: [])
+    recovered = client.post("/api/alerts/sync", json={"sources": ["gdacs"]})
+    assert recovered.status_code == 200
+    assert recovered.json()["sources"][0]["status"] == "success"
+
+    source = next(
+        item for item in client.get("/api/alerts/sources").json()
+        if item["source"] == "gdacs"
+    )
+    assert source["status"] == "ok"
+    assert source["offline_since"] is None
+    assert source["last_error"] is None
+    assert source["failure_count"] == 0
+    assert source["retry_after_seconds"] == source["configured_sync_interval_seconds"]
+
+
+def test_provider_failure_does_not_raise_and_other_feed_still_succeeds(client, monkeypatch):
+    def fetch(source):
+        if source == "gdacs":
+            raise OSError("offline")
+        return []
+
+    monkeypatch.setattr(alert_service.alert_sources, "fetch_alerts", fetch)
+    response = client.post(
+        "/api/alerts/sync",
+        json={"sources": ["gdacs", "usgs"]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "partial"
+    assert [row["status"] for row in response.json()["sources"]] == ["failed", "success"]
+    statuses = {
+        row["source"]: row["status"]
+        for row in client.get("/api/alerts/sources").json()
+    }
+    assert statuses == {"gdacs": "offline", "usgs": "ok"}
