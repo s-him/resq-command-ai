@@ -12,6 +12,7 @@ export default function ConfirmDialog({
   recommendation,
   note,
   submitting,
+  errorMessage = "",
   onCancel,
   onConfirm,
 }) {
@@ -88,11 +89,15 @@ export default function ConfirmDialog({
           </div>
         </div>
 
+        {errorMessage && (
+          <p className="field-error" role="alert">{errorMessage}</p>
+        )}
+
         <div className="confirm-boundary-note">
-          <strong>Prototype boundary:</strong> Confirming saves this decision and appends an entry
-          to the SQLite action history. It does not dispatch emergency personnel, contact external
-          services, or deduct resource inventory quantities.
-          {isApprove && " Stock is not reserved until you create and approve a response plan."}
+          <strong>Prototype boundary:</strong> Confirming records this decision and appends an
+          action-history entry. Approval rechecks and earmarks the recommended capacity without
+          changing physical inventory. Approving a response plan converts that hold into a virtual
+          reservation; rejected or completed plans release it. No real responder is dispatched.
         </div>
       </div>
     </Modal>

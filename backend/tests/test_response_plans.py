@@ -67,27 +67,44 @@ def test_response_plan_requires_approved_recommendation(client):
     assert "Approve the resource recommendation" in response.json()["detail"]
 
 
-def test_simulation_reserves_stock_without_changing_inventory_and_releases_on_completion(client):
+def test_approved_holds_and_simulation_reservations_release_when_completed(client):
     resource = create_ambulance(client, 3)
     incident_one = create_incident(client, "ONE")
     incident_two = create_incident(client, "TWO")
 
-    recommendation_one = create_approved_recommendation(client, incident_one)
-    recommendation_two = create_approved_recommendation(client, incident_two)
+    recommendation_one = client.post(
+        f"/api/incidents/{incident_one}/recommendation"
+    ).json()
+    recommendation_two = client.post(
+        f"/api/incidents/{incident_two}/recommendation"
+    ).json()
+    assert recommendation_one["items"][0]["recommended_quantity"] == 2
+    assert recommendation_two["items"][0]["recommended_quantity"] == 2
+
+    approved_one = client.post(
+        f"/api/recommendations/{recommendation_one['id']}/decision",
+        json={"decision": "approved", "note": "First allocation approved."},
+    )
+    assert approved_one.status_code == 200
+
+    # The first approval earmarks two of the three units. The stale second
+    # recommendation cannot also claim two units while only one remains.
+    blocked_approval = client.post(
+        f"/api/recommendations/{recommendation_two['id']}/decision",
+        json={"decision": "approved"},
+    )
+    assert blocked_approval.status_code == 409
+    assert "1 unit(s) available" in blocked_approval.json()["detail"]
+    assert client.get(
+        f"/api/recommendations/{recommendation_two['id']}"
+    ).json()["status"] == "pending"
 
     plan_one_response = client.post(
         f"/api/incidents/{incident_one}/response-plans",
-        json={"recommendation_id": recommendation_one},
-    )
-    plan_two_response = client.post(
-        f"/api/incidents/{incident_two}/response-plans",
-        json={"recommendation_id": recommendation_two},
+        json={"recommendation_id": recommendation_one["id"]},
     )
     assert plan_one_response.status_code == 201
-    assert plan_two_response.status_code == 201
-
     plan_one = plan_one_response.json()
-    plan_two = plan_two_response.json()
     assert plan_one["status"] == "pending"
     assert plan_one["items"][0]["resource_id"] == resource["id"]
     assert plan_one["items"][0]["assigned_quantity"] == 2
@@ -98,18 +115,16 @@ def test_simulation_reserves_stock_without_changing_inventory_and_releases_on_co
     )
     assert simulated_one.status_code == 200, simulated_one.text
     assert simulated_one.json()["plan"]["status"] == "simulated"
-
-    # The plan reserves quantity in a separate ledger; physical inventory remains unchanged.
     assert client.get("/api/resources").json()[0]["quantity_available"] == 3
 
-    # A second plan cannot reserve stock already committed by the first simulation.
-    overbooked = client.post(
-        f"/api/response-plans/{plan_two['id']}/decision",
-        json={"decision": "approve"},
+    # The active plan now accounts for the same two units. A retry still sees
+    # only one unreserved unit and leaves the stale recommendation pending.
+    blocked_while_active = client.post(
+        f"/api/recommendations/{recommendation_two['id']}/decision",
+        json={"decision": "approved"},
     )
-    assert overbooked.status_code == 409
-    assert "1 unreserved unit" in overbooked.json()["detail"]
-    assert client.get(f"/api/response-plans/{plan_two['id']}").json()["status"] == "pending"
+    assert blocked_while_active.status_code == 409
+    assert "1 unit(s) available" in blocked_while_active.json()["detail"]
 
     completed = client.post(
         f"/api/response-plans/{plan_one['id']}/complete",
@@ -123,14 +138,24 @@ def test_simulation_reserves_stock_without_changing_inventory_and_releases_on_co
         "completed",
     ]
 
-    # Completing the first simulation releases its simulated reservation.
+    # Completing the first simulation releases its hold; the second
+    # recommendation can now be revalidated and approved.
+    approved_two = client.post(
+        f"/api/recommendations/{recommendation_two['id']}/decision",
+        json={"decision": "approved"},
+    )
+    assert approved_two.status_code == 200
+    plan_two = client.post(
+        f"/api/incidents/{incident_two}/response-plans",
+        json={"recommendation_id": recommendation_two["id"]},
+    )
+    assert plan_two.status_code == 201
     simulated_two = client.post(
-        f"/api/response-plans/{plan_two['id']}/decision",
+        f"/api/response-plans/{plan_two.json()['id']}/decision",
         json={"decision": "approve"},
     )
     assert simulated_two.status_code == 200
     assert simulated_two.json()["plan"]["status"] == "simulated"
-
 
 
 def test_simulation_reservations_reduce_remaining_stock_for_inventory_and_new_recommendations(client):
