@@ -357,10 +357,15 @@ curl.exe http://127.0.0.1:8000/api/resources
 - `food`, `water` -> `supply`
 - `other` -> `other`
 
-Only resources with `availability_status = "available"` and `quantity_available > 0`
-are considered, and the suggested quantity never exceeds what is available.
-Completely missing resource types are listed under `unavailable_needs`, and partial
-stock shortfalls are listed under `insufficient_needs`.
+The desired quantities are **demonstration assumptions only**: one rescue-team
+unit per 200 people, one ambulance per 100 people, one shelter/supply unit per person,
+and one other-resource unit per 25 people. They are not validated staffing ratios
+or emergency-response guidance.
+
+Only resources with an available status and positive unreserved quantity are
+considered, and the suggested quantity never exceeds what is available. Missing
+types are listed under unavailable_needs; partial shortages are listed under
+insufficient_needs.
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/api/incidents/1/recommendation

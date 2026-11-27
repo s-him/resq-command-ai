@@ -234,7 +234,7 @@ def test_old_recommendations_table_is_upgraded_safely(temp_database):
 
 
 
-def _create_medical_recommendation(client, *, suffix, people=50):
+def _create_medical_recommendation(client, *, suffix, people=200):
     incident = client.post(
         "/api/incidents",
         json={

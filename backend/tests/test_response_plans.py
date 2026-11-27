@@ -12,7 +12,7 @@ def create_incident(client, suffix):
             "description": f"Structural collapse report for simulation case {suffix}.",
             "location": f"Test District {suffix}",
             "reported_at": reported_at,
-            "people_affected": 50,
+            "people_affected": 200,
             "help_needed": ["medical"],
             "latitude": 28.6139,
             "longitude": 77.2090,

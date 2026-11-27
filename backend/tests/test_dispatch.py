@@ -47,7 +47,7 @@ def create_ambulance(client, quantity=3, name="AUTO Ambulance Pool"):
     return response.json()
 
 
-def create_eligible_incident(client, *, suffix="AUTO", people=50):
+def create_eligible_incident(client, *, suffix="AUTO", people=200):
     response = client.post(
         "/api/incidents",
         json={

@@ -88,8 +88,8 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             },
         ],
         "resources": [
-            (ResourceType.RESCUE_TEAM, "Rescue Teams", 1200, "Paradip Demo Depot", 20.30, 86.60),
-            (ResourceType.AMBULANCE, "Ambulance Pool", 1200, "Puri Demo Depot", 19.81, 85.83),
+            (ResourceType.RESCUE_TEAM, "Rescue Teams", 55, "Paradip Demo Depot", 20.30, 86.60),
+            (ResourceType.AMBULANCE, "Ambulance Pool", 110, "Puri Demo Depot", 19.81, 85.83),
             (ResourceType.SHELTER, "Shelter Places", 50000, "Puri Demo Shelter", 19.80, 85.82),
             (ResourceType.SUPPLY, "Relief Supply Kits", 50000, "Ganjam Demo Depot", 19.31, 84.79),
         ],
@@ -132,8 +132,8 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             },
         ],
         "resources": [
-            (ResourceType.RESCUE_TEAM, "Rescue Teams", 1200, "Barpeta Demo Depot", 26.32, 91.01),
-            (ResourceType.AMBULANCE, "Ambulance Pool", 1200, "Dhemaji Demo Depot", 27.48, 94.58),
+            (ResourceType.RESCUE_TEAM, "Rescue Teams", 36, "Barpeta Demo Depot", 26.32, 91.01),
+            (ResourceType.AMBULANCE, "Ambulance Pool", 72, "Dhemaji Demo Depot", 27.48, 94.58),
             (ResourceType.SHELTER, "Shelter Places", 50000, "Barpeta Demo Shelter", 26.33, 91.00),
             (ResourceType.SUPPLY, "Relief Supply Kits", 50000, "Majuli Demo Depot", 26.95, 94.21),
         ],
@@ -176,8 +176,8 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             },
         ],
         "resources": [
-            (ResourceType.RESCUE_TEAM, "Rescue Teams", 1200, "Guwahati Demo Depot", 26.14, 91.74),
-            (ResourceType.AMBULANCE, "Ambulance Pool", 1200, "Shillong Demo Depot", 25.58, 91.89),
+            (ResourceType.RESCUE_TEAM, "Rescue Teams", 30, "Guwahati Demo Depot", 26.14, 91.74),
+            (ResourceType.AMBULANCE, "Ambulance Pool", 60, "Shillong Demo Depot", 25.58, 91.89),
             (ResourceType.SHELTER, "Shelter Places", 50000, "Guwahati Demo Shelter", 26.15, 91.73),
             (ResourceType.SUPPLY, "Relief Supply Kits", 50000, "Tezpur Demo Depot", 26.63, 92.80),
         ],
@@ -223,7 +223,7 @@ def _build_alerts(scenario: str, definition: dict[str, Any], now: datetime) -> l
 
 
 def _ensure_demo_resources(scenario: str, definition: dict[str, Any]) -> int:
-    """Create demo-only pools and raise old demo quantities to the current sample capacity."""
+    """Create demo pools and reconcile legacy sizes without breaking active assignments."""
     existing_resources = {
         resource.name: resource for resource in resource_repository.list_resources()
     }
@@ -232,12 +232,21 @@ def _ensure_demo_resources(scenario: str, definition: dict[str, Any]) -> int:
         name = f"SIMULATED · {scenario.upper()} · {label}"
         existing = existing_resources.get(name)
         if existing is not None:
-            if existing.quantity_available < quantity:
+            # Reconcile old oversized pools, while preserving active virtual assignments.
+            active_reserved = max(
+                existing.simulation_reserved_quantity or 0,
+                existing.deployed_quantity or 0,
+            )
+            target_quantity = max(quantity, active_reserved)
+            if existing.quantity_available != target_quantity:
                 resource_repository.update_resource(
                     existing.id,
                     ResourceUpdate(
-                        quantity_available=quantity,
-                        note="SIMULATED demo inventory capacity refreshed for repeatable scenarios.",
+                        quantity_available=target_quantity,
+                        note=(
+                            "SIMULATED demo inventory reconciled to the documented "
+                            "scenario capacity; active virtual assignments preserved."
+                        ),
                     ),
                 )
             continue

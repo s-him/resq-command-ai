@@ -91,3 +91,64 @@ def test_demo_rejects_unknown_scenario_without_creating_records(client):
     assert response.status_code == 422
     assert client.get("/api/incidents").json() == []
     assert client.get("/api/resources").json() == []
+
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected_pools"),
+    [
+        ("cyclone", {"rescue_team": 55, "ambulance": 110}),
+        ("flood", {"rescue_team": 36, "ambulance": 72}),
+        ("earthquake", {"rescue_team": 30, "ambulance": 60}),
+    ],
+)
+def test_demo_inventory_uses_documented_ratios_and_keeps_shortfalls(
+    client, scenario, expected_pools
+):
+    response = client.post("/api/demo/simulate", json={"scenario": scenario})
+    assert response.status_code == 201, response.text
+    incident_ids = response.json()["incident_ids"]
+
+    resources = client.get("/api/resources").json()
+    scenario_resources = [
+        item for item in resources
+        if item["name"].startswith(f"SIMULATED · {scenario.upper()} ·")
+    ]
+    actual_pools = {
+        item["resource_type"]: item["quantity_available"]
+        for item in scenario_resources
+        if item["resource_type"] in {"rescue_team", "ambulance"}
+    }
+    assert actual_pools == expected_pools
+
+    recommendations = []
+    for incident_id in incident_ids:
+        history = client.get(f"/api/incidents/{incident_id}/history")
+        assert history.status_code == 200, history.text
+        recommendations.extend(history.json()["recommendations"])
+
+    shortfall_types = {
+        gap["resource_type"]
+        for recommendation in recommendations
+        for gap in recommendation["insufficient_needs"]
+    }
+    assert {"rescue_team", "ambulance"}.intersection(shortfall_types)
+
+    # Simulate a legacy oversized pool and ensure the next run reconciles it.
+    rescue_pool = next(
+        item for item in scenario_resources if item["resource_type"] == "rescue_team"
+    )
+    enlarged = client.patch(
+        f"/api/resources/{rescue_pool['id']}",
+        json={
+            "quantity_available": 1200,
+            "note": "Simulate inventory left over from the previous demo sizing.",
+        },
+    )
+    assert enlarged.status_code == 200, enlarged.text
+
+    rerun = client.post("/api/demo/simulate", json={"scenario": scenario})
+    assert rerun.status_code == 201, rerun.text
+    refreshed = client.get("/api/resources").json()
+    restored = next(item for item in refreshed if item["id"] == rescue_pool["id"])
+    assert restored["quantity_available"] == expected_pools["rescue_team"]

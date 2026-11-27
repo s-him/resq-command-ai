@@ -60,10 +60,12 @@ Medium from 25, High from 50, Critical from 75.
 
 **Priority:** score, then people affected, then earlier report time, then lower ID.
 
-**Allocation:** each help need maps to a resource type. The estimate is one shelter or
-supply unit per person and one team or ambulance unit per 25 people. Nearer resources
-come first when coordinates exist. A recommendation never exceeds available stock, and
-shortfalls are reported. These ratios are demonstration assumptions.
+**Allocation:** each help need maps to a resource type. Demonstration assumptions
+are one rescue-team unit per 200 people, one ambulance unit per 100 people, one shelter
+or supply unit per person, and one other-resource unit per 25 people. Nearer resources
+come first when coordinates exist. Recommendations do not exceed currently available
+stock, and shortages are reported. These are illustrative academic assumptions, not
+validated staffing or emergency-response guidance.
 
 ## 6. Technology
 
