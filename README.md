@@ -675,3 +675,21 @@ No new runtime dependency is required for demo mode, SSE or visualization. The e
 
 The GitHub Actions workflow .github/workflows/backend-tests.yml runs the backend pytest suite and the frontend production build (npm ci followed by npm run build) for pull requests to main. Recorded local results are in [docs/TEST_REPORT.md](docs/TEST_REPORT.md).
 
+
+### LLM smoke test
+
+The optional smoke test runs one clearly labeled synthetic flood incident through
+the existing five-agent incident pipeline and prints each agent's actual LLM or
+rules mode and rationale. It reads configuration only from the process environment.
+With LLM disabled or without a key it skips before creating a database record. With
+a configured provider it stores one SIMULATED smoke-test incident and an immutable
+agent trace; provider failures are reported as deterministic-rules fallback without
+printing credentials.
+
+Run from the repository root using the backend virtual environment:
+
+    LLM_ENABLED=true LLM_API_KEY=YOUR_KEY_IN_YOUR_SHELL_ONLY \
+      backend/.venv/bin/python backend/scripts/llm_smoke_test.py
+
+Do not commit API keys or put them in screenshots, logs, or the collection. Normal
+application startup still requires no LLM environment variables.
