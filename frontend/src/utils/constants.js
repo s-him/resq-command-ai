@@ -124,3 +124,13 @@ export const SAFETY_NOTICE =
 
 export const HUMAN_REVIEW_WARNING =
   "Operator review is required. Approving a recommendation does not reserve stock; stock is reserved (virtually) only when its response plan is approved. Nothing here is a real dispatch instruction.";
+
+
+export const VULNERABLE_GROUPS = [
+  "children",
+  "elderly",
+  "hospital",
+  "school",
+  "pregnant_women",
+  "disabled",
+];

@@ -1199,6 +1199,17 @@ def _migration_014_create_action_log(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migration_015_add_incident_vulnerable_groups(connection: sqlite3.Connection) -> None:
+    """Add explicit vulnerability reporting; pre-existing incidents remain unselected."""
+    if "vulnerable_groups" not in _table_columns(connection, "incidents"):
+        connection.execute(
+            """
+            ALTER TABLE incidents
+            ADD COLUMN vulnerable_groups TEXT NOT NULL DEFAULT '[]'
+            """
+        )
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "001_create_missing_tables", _migration_001_create_missing_tables),
     (2, "002_enforce_constraints_and_rebuild_legacy_tables", _migration_002_rebuild_legacy_tables_with_constraints),
@@ -1214,6 +1225,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (12, "012_add_incident_event_and_hazard_signal_fields", _migration_012_add_incident_event_and_hazard_signal_fields),
     (13, "013_add_dispatch_mode_and_deployment_ledger", _migration_013_add_dispatch_mode_and_deployment_ledger),
     (14, "014_create_action_log", _migration_014_create_action_log),
+    (15, "015_add_incident_vulnerable_groups", _migration_015_add_incident_vulnerable_groups),
 ]
 
 

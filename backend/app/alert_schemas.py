@@ -78,6 +78,11 @@ class AlertSourceStatus(BaseModel):
     hazard_types: list[str]
     feed_url: str
     update_interval: str
+    status: str = "ok"
+    offline_since: datetime | None = None
+    last_error: str | None = None
+    failure_count: int = 0
+    retry_after_seconds: int | None = None
     automatic_sync_enabled: bool
     configured_sync_interval_seconds: int | None = None
     last_sync: AlertSyncRunSummary | None = None

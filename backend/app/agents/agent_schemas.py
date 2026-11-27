@@ -1,7 +1,5 @@
 """Strict Pydantic response contracts for optional LLM suggestions."""
 
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas import HazardType

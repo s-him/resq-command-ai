@@ -4,7 +4,7 @@ import { useToast } from "../../context/ToastContext";
 import { navigate } from "../../hooks/useHashRoute";
 import { ApiError, describeError } from "../../services/apiClient";
 import { createIncident } from "../../services/incidentService";
-import { HAZARD_TYPES, HELP_TYPES } from "../../utils/constants";
+import { HAZARD_TYPES, HELP_TYPES, VULNERABLE_GROUPS } from "../../utils/constants";
 import { incidentCode, labelize, toLocalInputValue } from "../../utils/format";
 import Icon from "../common/Icon";
 import Modal from "../common/Modal";
@@ -20,6 +20,7 @@ const DEMO_PRESETS = {
     location: "Sector 9, Lake View Apartments",
     people_affected: "120",
     help_needed: ["rescue", "medical", "shelter"],
+    vulnerable_groups: ["children", "disabled"],
     description:
       "Partial collapse of a four-storey residential wing following structural failure; residents reported trapped on the ground floor requiring urgent urban search and medical triage.",
     latitude: "12.9716",
@@ -30,6 +31,7 @@ const DEMO_PRESETS = {
     location: "Ward 3, Market Lane",
     people_affected: "8",
     help_needed: ["water", "food"],
+    vulnerable_groups: [],
     description:
       "Localized street waterlogging near the low-lying market lane; eight residents in ground-floor shops need clean drinking water and dry ration packets.",
     latitude: "13.0827",
@@ -45,6 +47,7 @@ function emptyForm() {
     reported_at: toLocalInputValue(),
     event_at: "",
     help_needed: ["medical"],
+    vulnerable_groups: [],
     description: "",
     latitude: "",
     longitude: "",
@@ -104,6 +107,16 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
       return { ...prev, help_needed: next };
     });
     setFieldErrors((prev) => ({ ...prev, help_needed: undefined }));
+  }
+
+  function toggleVulnerableGroup(group) {
+    setForm((prev) => {
+      const exists = prev.vulnerable_groups.includes(group);
+      const next = exists
+        ? prev.vulnerable_groups.filter((item) => item !== group)
+        : [...prev.vulnerable_groups, group];
+      return { ...prev, vulnerable_groups: next };
+    });
   }
 
   function validateLocally() {
@@ -168,6 +181,7 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
         reported_at: new Date(form.reported_at).toISOString(),
         people_affected: Number(form.people_affected),
         help_needed: form.help_needed,
+        vulnerable_groups: form.vulnerable_groups,
       };
       if (form.event_at.trim() !== "") {
         payload.event_at = new Date(form.event_at).toISOString();
@@ -447,6 +461,30 @@ export default function IncidentFormModal({ open, initialPreset = null, onClose 
           {fieldErrors.help_needed && (
             <span className="field-error">{fieldErrors.help_needed}</span>
           )}
+        </div>
+
+        <div className="form-field form-field-full">
+          <label>Vulnerable Groups at Risk (optional)</label>
+          <div className="chip-selector" role="group" aria-label="Vulnerable groups at risk">
+            {VULNERABLE_GROUPS.map((group) => {
+              const selected = form.vulnerable_groups.includes(group);
+              return (
+                <button
+                  key={group}
+                  type="button"
+                  className={"chip-option " + (selected ? "is-selected" : "")}
+                  onClick={() => toggleVulnerableGroup(group)}
+                  disabled={submitting}
+                  aria-pressed={selected}
+                >
+                  {labelize(group)}
+                </button>
+              );
+            })}
+          </div>
+          <span className="field-hint">
+            Select only groups confirmed in the report. Explicit selections take priority over description keywords and add up to 5 severity points.
+          </span>
         </div>
 
         <div className="form-field form-field-full">

@@ -46,7 +46,7 @@ def test_missing_incident_returns_404(client):
 
 def test_recommends_matching_available_resources_and_reports_unavailable(client):
     incident_id = add_incident(client)  # needs medical (ambulance) and shelter
-    ambulance = add_resource(client, "ambulance", "City Ambulance Unit A", 3)
+    ambulance = add_resource(client, "ambulance", "City Ambulance Unit A", 1)
 
     response = client.post(f"/api/incidents/{incident_id}/recommendation")
 
@@ -62,7 +62,7 @@ def test_recommends_matching_available_resources_and_reports_unavailable(client)
     match = body["items"][0]
     assert match["resource_id"] == ambulance["id"]
     assert match["resource_type"] == "ambulance"
-    assert match["recommended_quantity"] == 3
+    assert match["recommended_quantity"] == 1
     assert match["recommended_quantity"] <= match["available_quantity"]
     assert "ambulance" in match["explanation"]
 
@@ -77,9 +77,9 @@ def test_recommends_matching_available_resources_and_reports_unavailable(client)
     assert len(body["insufficient_needs"]) == 1
     shortfall = body["insufficient_needs"][0]
     assert shortfall["resource_type"] == "ambulance"
-    assert shortfall["estimated_needed"] == 5
-    assert shortfall["available_matched"] == 3
-    assert shortfall["shortfall"] == 2
+    assert shortfall["estimated_needed"] == 2
+    assert shortfall["available_matched"] == 1
+    assert shortfall["shortfall"] == 1
     assert "Insufficient 'ambulance'" in shortfall["message"]
 
 
@@ -119,7 +119,7 @@ def test_recommends_only_needed_quantity_when_plenty_available(client):
     body = client.post(f"/api/incidents/{incident_id}/recommendation").json()
 
     assert len(body["items"]) == 1
-    assert body["items"][0]["recommended_quantity"] == 1  # ceil(10 / 25) = 1
+    assert body["items"][0]["recommended_quantity"] == 1  # ceil(10 / 100) = 1
     assert body["items"][0]["available_quantity"] == 8
 
 
@@ -165,7 +165,7 @@ def test_recommendation_is_saved_in_sqlite(client, temp_database):
 def test_recommendation_prefers_nearest_geocoded_resource(client):
     incident_id = add_incident(
         client,
-        people_affected=75,
+        people_affected=250,
         help_needed=["medical"],
         latitude=28.6139,
         longitude=77.2090,
@@ -217,3 +217,25 @@ def test_recommendation_falls_back_to_stock_when_resource_coordinates_missing(cl
     assert [item["resource_id"] for item in items] == [high_stock["id"]]
     assert items[0]["distance_km"] is None
     assert items[0]["distance_basis"] == "not_available"
+
+
+
+def test_resource_specific_demo_demand_ratios_are_documented_and_independent():
+    from app.recommendations import (
+        PEOPLE_PER_AMBULANCE_UNIT,
+        PEOPLE_PER_OTHER_UNIT,
+        PEOPLE_PER_RESCUE_TEAM_UNIT,
+        desired_quantity_for,
+    )
+    from app.schemas import ResourceType
+
+    assert PEOPLE_PER_RESCUE_TEAM_UNIT == 200
+    assert PEOPLE_PER_AMBULANCE_UNIT == 100
+    assert PEOPLE_PER_OTHER_UNIT == 25
+    assert desired_quantity_for(ResourceType.RESCUE_TEAM, 401) == 3
+    assert desired_quantity_for(ResourceType.AMBULANCE, 201) == 3
+    assert desired_quantity_for(ResourceType.OTHER, 51) == 3
+    assert desired_quantity_for(ResourceType.SHELTER, 200) == 200
+    assert desired_quantity_for(ResourceType.SUPPLY, 200) == 200
+    assert desired_quantity_for(ResourceType.RESCUE_TEAM, 0) == 1
+    assert desired_quantity_for(ResourceType.AMBULANCE, 0) == 1

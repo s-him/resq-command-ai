@@ -47,6 +47,7 @@ def _current_severity(row: sqlite3.Row) -> SeverityAssessment:
         hazard_magnitude=row["hazard_magnitude"],
         hazard_magnitude_unit=row["hazard_magnitude_unit"],
         provider_alert_level=row["provider_alert_level"],
+        vulnerable_groups=json.loads(row["vulnerable_groups"] or "[]"),
     )
 
 
@@ -71,6 +72,7 @@ def _row_to_incident(row: sqlite3.Row) -> Incident:
         event_at=row["event_at"],
         people_affected=row["people_affected"],
         help_needed=json.loads(row["help_needed"]),  # JSON text -> Python list
+        vulnerable_groups=json.loads(row["vulnerable_groups"] or "[]"),
         status=row["status"],
         created_at=row["created_at"],
         severity=assessment,
@@ -106,6 +108,7 @@ def create_incident(data: IncidentCreate) -> Incident:
         hazard_magnitude=data.hazard_magnitude,
         hazard_magnitude_unit=data.hazard_magnitude_unit,
         provider_alert_level=data.provider_alert_level,
+        vulnerable_groups=data.vulnerable_groups,
     )
 
     connection = get_connection()
@@ -119,8 +122,8 @@ def create_incident(data: IncidentCreate) -> Incident:
                  event_at, severity_score, severity_level, severity_explanation,
                  severity_factors, severity_rules_version,
                  latitude, longitude, hazard_magnitude, hazard_magnitude_unit,
-                 provider_alert_level)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 provider_alert_level, vulnerable_groups)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.hazard_type.value,
@@ -138,6 +141,7 @@ def create_incident(data: IncidentCreate) -> Incident:
                 data.hazard_magnitude,
                 data.hazard_magnitude_unit,
                 data.provider_alert_level,
+                json.dumps([group.value for group in data.vulnerable_groups]),
             ),
         )
         connection.commit()
@@ -217,7 +221,7 @@ def fill_missing_severity() -> int:
             """
             SELECT id, hazard_type, description, location, reported_at, event_at,
                    people_affected, help_needed, hazard_magnitude,
-                   hazard_magnitude_unit, provider_alert_level
+                   hazard_magnitude_unit, provider_alert_level, vulnerable_groups
             FROM incidents
             WHERE severity_score IS NULL OR severity_rules_version IS NULL OR severity_rules_version != ?
             """,
@@ -239,6 +243,7 @@ def fill_missing_severity() -> int:
                 hazard_magnitude=row["hazard_magnitude"],
                 hazard_magnitude_unit=row["hazard_magnitude_unit"],
                 provider_alert_level=row["provider_alert_level"],
+                vulnerable_groups=json.loads(row["vulnerable_groups"] or "[]"),
             )
             connection.execute(
                 """

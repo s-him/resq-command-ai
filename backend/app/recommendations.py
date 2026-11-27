@@ -18,9 +18,14 @@ HOW MATCHING WORKS
 2. Group help needs that share the same resource type (so e.g. ["food", "water"]
    maps to "supply" once, and we never double-count the same resource).
 
-3. Estimate a simple desired quantity from `people_affected`:
+3. Estimate a demonstration quantity from `people_affected`:
    - shelter / supply: 1 unit per person (minimum 1)
-   - ambulance / rescue_team / other: 1 unit per 25 people, rounded up (minimum 1)
+   - rescue_team: 1 unit per 200 people, rounded up (minimum 1)
+   - ambulance: 1 unit per 100 people, rounded up (minimum 1)
+   - other: 1 unit per 25 people, rounded up (minimum 1)
+
+These are illustrative academic sizing assumptions, not validated emergency
+staffing or response guidance.
 
 4. Look only at resources whose `availability_status` is "available" AND whose
    `quantity_available` is greater than 0. Largest available stock is picked first.
@@ -63,16 +68,25 @@ HELP_TO_RESOURCE_TYPE: dict[HelpType, ResourceType] = {
     HelpType.OTHER: ResourceType.OTHER,
 }
 
-# Resource types where 1 unit roughly serves 1 person (e.g. shelter bed or supply kit).
+# Demonstration-only demand assumptions; not validated emergency staffing ratios.
+# Shelter and supply remain one unit per reported person.
 PER_PERSON_RESOURCE_TYPES = {ResourceType.SHELTER, ResourceType.SUPPLY}
-PEOPLE_PER_TEAM_UNIT = 25
+PEOPLE_PER_RESCUE_TEAM_UNIT = 200
+PEOPLE_PER_AMBULANCE_UNIT = 100
+PEOPLE_PER_OTHER_UNIT = 25
 
 
 def desired_quantity_for(resource_type: ResourceType, people_affected: int) -> int:
-    """Simple demonstration estimate of how many units to suggest."""
+    """Estimate demo resource demand using a separate illustrative ratio per type."""
     if resource_type in PER_PERSON_RESOURCE_TYPES:
         return max(1, people_affected)
-    return max(1, math.ceil(people_affected / PEOPLE_PER_TEAM_UNIT))
+
+    people_per_unit = {
+        ResourceType.RESCUE_TEAM: PEOPLE_PER_RESCUE_TEAM_UNIT,
+        ResourceType.AMBULANCE: PEOPLE_PER_AMBULANCE_UNIT,
+        ResourceType.OTHER: PEOPLE_PER_OTHER_UNIT,
+    }[resource_type]
+    return max(1, math.ceil(people_affected / people_per_unit))
 
 
 def group_needs_by_resource_type(

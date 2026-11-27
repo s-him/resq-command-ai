@@ -82,6 +82,7 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
             hazard_magnitude=magnitude,
             hazard_magnitude_unit=magnitude_unit,
             provider_alert_level=provider_level,
+            vulnerable_groups=data.vulnerable_groups,
         )
         severity_factors = json.dumps(
             [factor.model_dump() for factor in assessment.factors]
@@ -93,9 +94,10 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
                 people_affected, help_needed, status, created_at, event_at,
                 severity_score, severity_level, severity_explanation,
                 severity_factors, severity_rules_version, latitude, longitude,
-                hazard_magnitude, hazard_magnitude_unit, provider_alert_level
+                hazard_magnitude, hazard_magnitude_unit, provider_alert_level,
+                vulnerable_groups
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.hazard_type.value,
@@ -117,6 +119,7 @@ def promote_alert_to_incident(alert_id: int, data: IncidentCreate) -> int:
                 magnitude,
                 magnitude_unit,
                 provider_level,
+                json.dumps([group.value for group in data.vulnerable_groups]),
             ),
         )
         incident_id = int(cursor.lastrowid)

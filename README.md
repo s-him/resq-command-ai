@@ -14,7 +14,7 @@
 
 This repository contains a full-stack academic decision-support prototype:
 
-- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, manual and automatic virtual-dispatch workflows with an audit ledger, a Server-Sent Events update stream, and repeatable SIMULATED demo scenarios, versioned database migrations (`001`–`014`), and a `pytest` test suite.
+- **`backend/`** — Python **FastAPI** REST API + **SQLite** database (`sqlite3`) with explainable rule-based severity scoring, multi-factor open-incident prioritisation, a resource inventory register, resource recommendation matching, human operator decision logging, GDACS/USGS alert ingestion with deduplication and human review, a five-specialist explainable assessment pipeline, proximity-aware resource matching, a combined incident/resource map, an Alert Intelligence operator page, manual and automatic virtual-dispatch workflows with an audit ledger, a Server-Sent Events update stream, and repeatable SIMULATED demo scenarios, versioned database migrations (001–015), and a `pytest` test suite.
 - **`frontend/`** — **React 19** + **Vite 6** + **Leaflet** operational intelligence dashboard (**ResQ Command**) connected to the FastAPI backend.
 
 ```text
@@ -36,7 +36,7 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   ├── main.py                  # FastAPI entry point, lifespan DB init, and CORS config
 │   │   ├── config.py                # Project-relative SQLite path (RELIEF_DATABASE_PATH override)
 │   │   ├── database.py              # SQLite connection helper (PRAGMA foreign_keys = ON)
-│   │   ├── migrations.py            # Versioned SQLite migrations (001-014)
+│   │   ├── migrations.py            # Versioned SQLite migrations (001-015)
 │   │   ├── schemas.py               # Pydantic request/response schemas and validation rules
 │   │   ├── severity.py              # Explainable 0–100 rule-based severity scoring
 │   │   ├── prioritization.py        # Open-incident priority ranking & tie-breaker explanations
@@ -49,7 +49,9 @@ This repository contains a full-stack academic decision-support prototype:
 │   │   └── routers/                 # /health, /api/alerts, /api/incidents, /api/resources, /api/recommendations, /api/response-plans
 │   ├── data/                        # relief.db is created here automatically on first startup
 │   ├── examples/                    # Sample JSON request payloads for curl/PowerShell demos
-│   ├── tests/                       # Backend pytest suite (current count reported by CI) (each uses a temporary SQLite DB)
+│   ├── scripts/export_postman.py    # Generate docs/postman_collection.json from app.openapi()
+│   ├── scripts/llm_smoke_test.py    # Optional configured-provider smoke test
+│   ├── tests/                       # Backend pytest suite (282 tests at this revision; temporary SQLite DBs)
 │   ├── requirements.txt             # Python dependencies
 │   └── README.md                    # Detailed backend API & database schema reference
 ├── frontend/
@@ -71,10 +73,15 @@ This repository contains a full-stack academic decision-support prototype:
 
 ---
 
+## Postman API collection
+
+docs/postman_collection.json is a Postman v2.1 collection generated from the current FastAPI OpenAPI schema. It includes request bodies from backend/examples/ and uses a collection variable baseUrl defaulting to http://127.0.0.1:8000. Regenerate it from the repository root with backend/.venv/bin/python backend/scripts/export_postman.py (or run python scripts/export_postman.py from backend/).
+
 ## Project documents
 
-- [Requirement traceability (FR-1–6, NFR-1–5)](docs/TRACEABILITY.md)
+- [Requirement traceability (FR-1–7, NFR-1–7)](docs/TRACEABILITY.md)
 - [Test report](docs/TEST_REPORT.md)
+- [Postman API collection](docs/postman_collection.json) — import into Postman; generated from FastAPI OpenAPI.
 - [Usability review form](docs/USABILITY_REVIEW.md)
 - [Final report draft](docs/FINAL_REPORT.md)
 
@@ -150,7 +157,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations `001`–`014` to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields; existing incidents are rescored once under the new rules version without losing their original incident data.
+> **Note on SQLite initialization:** You do **not** need an existing database file. On first startup, `uvicorn` automatically creates `backend/data/relief.db` and runs versioned migrations 001–015 to initialize all tables (`incidents`, `resources`, `recommendations`, `recommendation_items`, `action_history`, `external_alerts`, `alert_sync_runs`, `alert_assessments`, `response_plans`, `response_plan_items`, `response_plan_actions`, `resource_change_history`, `incident_updates`, `incident_agent_runs`, and `schema_migrations`). Migration 008 adds an optional link from a reviewed external alert to the incident created from it. Migration 009 adds resource registration and inventory-change audit history. Migration 010 adds timestamped incident status and operator-note history. Migration 011 adds immutable incident-agent traces. Migration 012 adds optional event time, hazard measurement and provider alert fields. Migration 015 adds incidents.vulnerable_groups, an optional JSON list of children, elderly, hospital, school, pregnant_women, and disabled; existing rows receive an empty list. Existing incident data is preserved and old rows are rescored at startup under demo-rules-v4.
 
 ---
 
@@ -295,6 +302,10 @@ The nearby resource API is `GET /api/resources/nearby?latitude=28.6139&longitude
 
 Straight-line distance is not road distance or travel time. This stage does not model flood/cyclone/earthquake impact boundaries, estimate affected population, or claim that registered resources are verified or deployable.
 
+### Demonstration allocation assumptions
+
+The rule-based matcher uses separate illustrative ratios: one rescue-team unit per 200 reported people, one ambulance per 100, one shelter/supply unit per person, and one other resource unit per 25 people. These are unvalidated academic demo assumptions, not real staffing standards or emergency-response guidance. The cyclone/flood/earthquake demo pools are sized to show partial shortages; existing demo pools are reconciled on repeat runs while preserving active virtual assignments.
+
 ---
 
 ## Human-gated response plan simulation (Stage 4)
@@ -312,6 +323,8 @@ A response plan can be created only from a resource recommendation that has alre
 | POST | `/api/response-plans/{plan_id}/complete` | Complete a simulation and release reservations |
 
 The frontend exposes this workflow under **Dispatch Simulation**. Each plan records its resource assignments, operator decisions, notes and timestamps.
+
+Before an operator can approve a pending recommendation, the API rechecks every item inside the same BEGIN IMMEDIATE transaction. It subtracts active simulated response-plan reservations, deployed AUTO assignments and other approved recommendation holds. If current stock cannot cover an item, the API returns HTTP 409 with the resource name and available quantity; the recommendation remains pending. Rejection does not require available stock. Approval earmarks capacity without changing physical quantities; approving the response plan turns the earmark into a virtual reservation.
 
 ---
 
@@ -359,6 +372,8 @@ RESQ_GDACS_SYNC_INTERVAL_SECONDS=600 RESQ_USGS_SYNC_INTERVAL_SECONDS=120 ./run.s
 
 The intervals must be at least 30 seconds; invalid or smaller values fall back to defaults. Manual **Sync Public Feeds** remains available. Manual and scheduled syncs for the same provider are serialized so they cannot race one another.
 
+A GDACS or USGS outage does not stop the application or erase previously saved alerts. The first failure in an outage streak emits one short provider warning; retries use capped exponential backoff and do not spam tracebacks. GET /api/alerts/sources exposes each provider's status (ok or offline), offline_since, last_error, failure_count, and retry_after_seconds. A successful fetch clears the offline state. The Alerts page and dashboard Live Alerts panel show 'Feeds offline - using saved/demo data' while either provider is offline.
+
 ---
 
 ## Resource readiness and inventory control (Stage 8)
@@ -398,7 +413,7 @@ A separate incident-level workflow now runs five named agents in order: **Monito
 - **ResourceAllocationAgent** calls the existing nearest/available-resource matcher and reports its assignments and shortfalls. LLM text cannot change resource IDs or quantities.
 - **NotificationAgent** prepares the high-severity alert, summarizes the validated outputs and states the next human review step. Database triggers record every action in `action_log`.
 
-Every new report (manual, promoted or demo) starts this pipeline and then gets a **pending** recommendation. Nothing is approved or reserved without an operator.
+Every new report (manual, promoted or demo) runs the five-agent pipeline. In MANUAL mode it receives a pending recommendation for operator review and approval. Only when AUTO is explicitly enabled by the backend environment can qualifying incidents create virtual assignments without that manual decision; no physical stock is changed and no real responder is contacted.
 
 Each run stores input summary, agent output, mode (llm or rules), rationale, confidence field, per-agent duration, total duration, and generation time. The confidence field is a prototype display value, not a calibrated probability.
 
@@ -456,9 +471,9 @@ Every provider response must be JSON and pass its agent's Pydantic schema. A dis
 
 ---
 
-## Severity rules v2 and affected-area priority (Phase 2)
+## Severity rules v4 and affected-area priority (Phase 2)
 
-Severity remains a transparent **0–100 prototype estimate**, not a calibrated probability or official emergency instruction. Rules version `demo-rules-v3` adds four evidence dimensions to the existing people/help factors:
+Severity remains a transparent **0–100 prototype estimate**, not a calibrated probability or official emergency instruction. Rules version `demo-rules-v4` retains the same six weights and adds an optional explicit vulnerable-groups field. Explicit operator selections take precedence; when the list is empty, conservative description/location keyword matching remains the fallback:
 
 | Factor | Maximum | Rule summary |
 |---|---:|---|
@@ -467,13 +482,13 @@ Severity remains a transparent **0–100 prototype estimate**, not a calibrated 
 | Hazard type | 10 | Small declared-category baseline weight |
 | Hazard signal | 15 | Strongest supported provider alert level or hazard measurement |
 | Event/report recency | 15 | Under 1 hour: 15; up to 6 hours: 12; up to 24 hours: 9; up to 72 hours: 5; older/missing: 0 |
-| Vulnerable population | 5 | Explicit hospital, school, elderly, child, infant or care-setting terms in report text |
+| Vulnerable population | 5 | Explicit vulnerable_groups selections (children, elderly, hospital, school, pregnant_women, disabled); narrative keyword matching is used only when no groups are selected |
 
 Hazard signal bands include GDACS-style `green` / `orange` / `red` alert levels, USGS-style earthquake magnitudes, cyclone category/wind measurements, and flood-water depth with supported units. If both a provider alert level and magnitude are supplied, the strongest supported signal is used once, not added twice. Unsupported units are stored for context and receive no invented points.
 
 Open incidents retain the deterministic order **severity score → people affected → earlier report time → ID**. The new `GET /api/incidents/areas/priority` endpoint groups open incidents by the recorded location string (trimmed and matched case-insensitively), then ranks areas by highest individual incident score, total reported people affected, earliest report, and top incident ID. It does not geocode locations, infer administrative boundaries, or query population data.
 
-Older incidents with a previous or missing rules version are recalculated at startup using the stored incident fields and migration 012 metadata columns. No incident is deleted. The new area view is shown on the main dashboard and can be refreshed with the rest of the dashboard data.
+Older incidents with a previous or missing rules version are recalculated at startup using the stored incident fields, migration 012 hazard metadata and migration 015 vulnerable-group field. No incident is deleted. The new area view is shown on the main dashboard and can be refreshed with the rest of the dashboard data.
 
 
 ---
@@ -675,3 +690,21 @@ No new runtime dependency is required for demo mode, SSE or visualization. The e
 
 The GitHub Actions workflow .github/workflows/backend-tests.yml runs the backend pytest suite and the frontend production build (npm ci followed by npm run build) for pull requests to main. Recorded local results are in [docs/TEST_REPORT.md](docs/TEST_REPORT.md).
 
+
+### LLM smoke test
+
+The optional smoke test runs one clearly labeled synthetic flood incident through
+the existing five-agent incident pipeline and prints each agent's actual LLM or
+rules mode and rationale. It reads configuration only from the process environment.
+With LLM disabled or without a key it skips before creating a database record. With
+a configured provider it stores one SIMULATED smoke-test incident and an immutable
+agent trace; provider failures are reported as deterministic-rules fallback without
+printing credentials.
+
+Run from the repository root using the backend virtual environment:
+
+    LLM_ENABLED=true LLM_API_KEY=YOUR_KEY_IN_YOUR_SHELL_ONLY \
+      backend/.venv/bin/python backend/scripts/llm_smoke_test.py
+
+Do not commit API keys or put them in screenshots, logs, or the collection. Normal
+application startup still requires no LLM environment variables.

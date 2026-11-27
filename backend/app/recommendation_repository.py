@@ -201,15 +201,117 @@ def list_recommendations_for_incident(incident_id: int) -> list[Recommendation]:
         connection.close()
 
 
+class RecommendationStockConflict(RuntimeError):
+    """Raised when a pending recommendation can no longer be covered by stock."""
+
+
+def _validate_recommendation_stock(
+    connection: sqlite3.Connection,
+    recommendation_id: int,
+) -> None:
+    """Validate and earmark stock while holding the SQLite write transaction.
+
+    Physical inventory is never edited here. Approved recommendations without a
+    completed/rejected response plan hold their suggested capacity. Once a plan
+    is simulated, its response-plan items (and any deployment-only records) are
+    counted as active reservations instead of counting the recommendation twice.
+    """
+    items = connection.execute(
+        """
+        SELECT ri.resource_id, ri.recommended_quantity, r.name,
+               r.quantity_available, r.availability_status
+        FROM recommendation_items ri
+        LEFT JOIN resources r ON r.id = ri.resource_id
+        WHERE ri.recommendation_id = ?
+        ORDER BY ri.id
+        """,
+        (recommendation_id,),
+    ).fetchall()
+
+    for item in items:
+        resource_id = item["resource_id"]
+        resource_name = item["name"] or f"Resource #{resource_id}"
+        physical_quantity = int(item["quantity_available"] or 0)
+        if item["availability_status"] != "available":
+            current_available = 0
+        else:
+            active_plan_reserved = connection.execute(
+                """
+                SELECT COALESCE(SUM(rpi.assigned_quantity), 0)
+                FROM response_plan_items rpi
+                JOIN response_plans rp ON rp.id = rpi.response_plan_id
+                WHERE rpi.resource_id = ? AND rp.status = 'simulated'
+                """,
+                (resource_id,),
+            ).fetchone()[0]
+
+            # AUTO deployments normally have matching response_plan_items.
+            # Count only deployment rows that have no such active plan item,
+            # avoiding the common double-count of the same AUTO assignment.
+            deployment_only_reserved = connection.execute(
+                """
+                SELECT COALESCE(SUM(d.assigned_quantity), 0)
+                FROM dispatch_deployments d
+                WHERE d.resource_id = ? AND d.status = 'deployed'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM response_plan_items rpi
+                      JOIN response_plans rp ON rp.id = rpi.response_plan_id
+                      WHERE rpi.response_plan_id = d.plan_id
+                        AND rpi.resource_id = d.resource_id
+                        AND rp.status = 'simulated'
+                  )
+                """,
+                (resource_id,),
+            ).fetchone()[0]
+
+            # An approved recommendation is an earmark until its response plan
+            # becomes simulated, rejected, or completed. This serializes two
+            # competing approvals without modifying the physical inventory.
+            approved_holds = connection.execute(
+                """
+                SELECT COALESCE(SUM(ri.recommended_quantity), 0)
+                FROM recommendation_items ri
+                JOIN recommendations other ON other.id = ri.recommendation_id
+                WHERE ri.resource_id = ?
+                  AND other.status = 'approved'
+                  AND other.id != ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM response_plans rp
+                      WHERE rp.recommendation_id = other.id
+                        AND rp.status IN ('simulated', 'rejected', 'completed')
+                  )
+                """,
+                (resource_id, recommendation_id),
+            ).fetchone()[0]
+
+            committed = (
+                int(active_plan_reserved)
+                + int(deployment_only_reserved)
+                + int(approved_holds)
+            )
+            current_available = max(0, physical_quantity - committed)
+
+        requested = int(item["recommended_quantity"])
+        if requested > current_available:
+            raise RecommendationStockConflict(
+                f"{resource_name} currently has {current_available} unit(s) available, "
+                f"but this recommendation requires {requested}. "
+                "Refresh the recommendation after checking inventory."
+            )
+
+
 def record_decision(
     recommendation_id: int,
     incident_id: int,
     decision: OperatorDecision,
     note: str | None,
 ) -> tuple[Recommendation, ActionHistoryEntry]:
-    """Save an operator's approve/reject decision and add an action_history row.
+    """Save an operator decision and its audit row in one write transaction.
 
-    Does NOT modify resource quantities.
+    Approval revalidates and earmarks the recommended capacity. Physical
+    resource quantities remain unchanged; the hold becomes a virtual response
+    plan reservation when a response plan is approved.
     """
     decided_at = utc_now().isoformat()
     action = f"recommendation_{decision.value}"
@@ -217,6 +319,9 @@ def record_decision(
     connection = get_connection()
     try:
         connection.execute("BEGIN IMMEDIATE")
+        if decision == OperatorDecision.APPROVED:
+            _validate_recommendation_stock(connection, recommendation_id)
+
         update_cursor = connection.execute(
             """
             UPDATE recommendations

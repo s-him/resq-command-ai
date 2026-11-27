@@ -177,7 +177,8 @@ function HazardChart({ incidents }) {
   );
 }
 
-function LiveAlerts({ alerts }) {
+function LiveAlerts({ alerts, feedSources }) {
+  const feedsOffline = feedSources.some((source) => source.status === "offline");
   const latest = alerts
     .slice()
     .sort((a, b) => dateValue(b.event_at || b.first_seen_at) - dateValue(a.event_at || a.first_seen_at))
@@ -192,6 +193,11 @@ function LiveAlerts({ alerts }) {
         </div>
         <span className="live-count">{alerts.length} saved</span>
       </div>
+      {feedsOffline && (
+        <p className="feed-offline-indicator" role="status">
+          Feeds offline - using saved/demo data
+        </p>
+      )}
       {latest.length === 0 ? (
         <div className="live-empty">No external alerts have been saved yet. Check Alert Intelligence or sync a feed.</div>
       ) : (
@@ -218,10 +224,10 @@ function LiveAlerts({ alerts }) {
   );
 }
 
-export default function DashboardLivePanels({ alerts = [], incidents = [], resources = [], responsePlans = [], onRefresh }) {
+export default function DashboardLivePanels({ alerts = [], feedSources = [], incidents = [], resources = [], responsePlans = [], onRefresh }) {
   return (
     <div className="dashboard-live-grid">
-      <LiveAlerts alerts={alerts} />
+      <LiveAlerts alerts={alerts} feedSources={feedSources} />
       <ResourceAvailability resources={resources} plans={responsePlans} />
       <ActiveOperations plans={responsePlans} onRefresh={onRefresh} />
       <HazardChart incidents={incidents} />

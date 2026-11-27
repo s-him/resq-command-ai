@@ -31,6 +31,7 @@ def test_create_incident_returns_id_and_open_status(client):
     assert body["status"] == "open"
     assert body["hazard_type"] == "flood"
     assert body["help_needed"] == ["evacuation", "food"]
+    assert body["vulnerable_groups"] == []
     assert "created_at" in body
 
 
@@ -343,3 +344,45 @@ def test_get_single_incident_and_404(client):
     assert missing.status_code == 404
     assert missing.json()["detail"] == "Incident 999 not found."
 
+
+
+
+def test_incident_persists_explicit_vulnerable_groups_and_scores_them_first(client):
+    payload = {
+        **VALID_INCIDENT,
+        "description": "No children or schools are affected in the reported area.",
+        "vulnerable_groups": ["pregnant_women", "disabled"],
+    }
+    response = client.post("/api/incidents", json=payload)
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["vulnerable_groups"] == ["pregnant_women", "disabled"]
+    factor = next(
+        item for item in body["severity"]["factors"]
+        if item["factor"] == "vulnerable_population"
+    )
+    assert factor["points"] == 5
+    assert factor["max_points"] == 5
+    assert "pregnant women" in factor["reason"]
+    assert "disabled people" in factor["reason"]
+    assert "children" not in factor["reason"]
+    assert "school" not in factor["reason"]
+
+
+def test_vulnerable_groups_are_optional_but_reject_duplicates_and_unknown_values(client):
+    defaulted = client.post("/api/incidents", json=VALID_INCIDENT)
+    assert defaulted.status_code == 201
+    assert defaulted.json()["vulnerable_groups"] == []
+
+    duplicate = client.post(
+        "/api/incidents",
+        json={**VALID_INCIDENT, "vulnerable_groups": ["children", "children"]},
+    )
+    assert duplicate.status_code == 422
+
+    unknown = client.post(
+        "/api/incidents",
+        json={**VALID_INCIDENT, "vulnerable_groups": ["first_responders"]},
+    )
+    assert unknown.status_code == 422

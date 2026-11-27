@@ -232,3 +232,133 @@ def test_old_recommendations_table_is_upgraded_safely(temp_database):
     assert rec["decided_at"] is None
     assert rec["insufficient_needs"] == []
 
+
+
+def _create_medical_recommendation(client, *, suffix, people=200):
+    incident = client.post(
+        "/api/incidents",
+        json={
+            "hazard_type": "flood",
+            "description": f"Flooding requires medical support for {suffix}.",
+            "location": f"District {suffix}",
+            "reported_at": "2026-11-27T05:00:00+00:00",
+            "people_affected": people,
+            "help_needed": ["medical"],
+        },
+    )
+    assert incident.status_code == 201, incident.text
+    recommendation = client.post(
+        f"/api/incidents/{incident.json()['id']}/recommendation"
+    )
+    assert recommendation.status_code == 201, recommendation.text
+    return incident.json()["id"], recommendation.json()
+
+
+def test_approval_rechecks_stock_after_another_plan_reserves_it(client):
+    resource = client.post(
+        "/api/resources",
+        json={
+            "resource_type": "ambulance",
+            "name": "Central Ambulance Pool",
+            "quantity_available": 3,
+            "location": "Central Depot",
+            "availability_status": "available",
+        },
+    ).json()
+    first_incident_id, first_rec = _create_medical_recommendation(
+        client, suffix="FIRST"
+    )
+    _, second_rec = _create_medical_recommendation(client, suffix="SECOND")
+
+    assert first_rec["items"][0]["recommended_quantity"] == 2
+    assert second_rec["items"][0]["recommended_quantity"] == 2
+
+    approved = client.post(
+        f"/api/recommendations/{first_rec['id']}/decision",
+        json={"decision": "approved"},
+    )
+    assert approved.status_code == 200
+    assert "earmarks" in approved.json()["message"].lower()
+
+    plan = client.post(
+        f"/api/incidents/{first_incident_id}/response-plans",
+        json={"recommendation_id": first_rec["id"]},
+    )
+    assert plan.status_code == 201, plan.text
+    simulated = client.post(
+        f"/api/response-plans/{plan.json()['id']}/decision",
+        json={"decision": "approve"},
+    )
+    assert simulated.status_code == 200, simulated.text
+
+    stale_approval = client.post(
+        f"/api/recommendations/{second_rec['id']}/decision",
+        json={"decision": "approved"},
+    )
+    assert stale_approval.status_code == 409
+    detail = stale_approval.json()["detail"]
+    assert "Central Ambulance Pool" in detail
+    assert "1 unit(s) available" in detail
+    assert "requires 2" in detail
+
+    current = client.get(f"/api/recommendations/{second_rec['id']}").json()
+    assert current["status"] == "pending"
+    assert current["decision_note"] is None
+    assert current["decided_at"] is None
+    assert client.get("/api/resources").json()[0]["quantity_available"] == 3
+    assert resource["quantity_available"] == 3
+
+
+def test_rejection_succeeds_even_when_no_resource_is_available(client):
+    _, recommendation = _create_medical_recommendation(
+        client, suffix="NO-STOCK"
+    )
+    assert recommendation["items"] == []
+
+    rejected = client.post(
+        f"/api/recommendations/{recommendation['id']}/decision",
+        json={"decision": "rejected", "note": "No ambulance stock is available."},
+    )
+    assert rejected.status_code == 200
+    assert rejected.json()["recommendation"]["status"] == "rejected"
+
+
+def test_two_competing_approvals_cannot_hold_more_than_current_stock(client):
+    from concurrent.futures import ThreadPoolExecutor
+
+    stock = client.post(
+        "/api/resources",
+        json={
+            "resource_type": "ambulance",
+            "name": "Only Two Ambulances",
+            "quantity_available": 2,
+            "location": "Central Depot",
+            "availability_status": "available",
+        },
+    )
+    assert stock.status_code == 201
+    _, first = _create_medical_recommendation(client, suffix="RACE-ONE")
+    _, second = _create_medical_recommendation(client, suffix="RACE-TWO")
+    assert first["items"][0]["recommended_quantity"] == 2
+    assert second["items"][0]["recommended_quantity"] == 2
+
+    def approve(recommendation_id):
+        return client.post(
+            f"/api/recommendations/{recommendation_id}/decision",
+            json={"decision": "approved"},
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(approve, [first["id"], second["id"]]))
+
+    assert sorted(result.status_code for result in results) == [200, 409]
+    conflict = next(result for result in results if result.status_code == 409)
+    assert "Only Two Ambulances" in conflict.json()["detail"]
+    assert "0 unit(s) available" in conflict.json()["detail"]
+
+    stored = [
+        client.get(f"/api/recommendations/{recommendation_id}").json()["status"]
+        for recommendation_id in (first["id"], second["id"])
+    ]
+    assert sorted(stored) == ["approved", "pending"]
+    assert client.get("/api/resources").json()[0]["quantity_available"] == 2

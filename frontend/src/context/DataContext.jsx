@@ -3,7 +3,7 @@ import { API_BASE_URL } from "../config";
 import { getHealth } from "../services/healthService";
 import { getAreaPriority, getIncidentHistory, getPriorityQueue, listIncidents } from "../services/incidentService";
 import { listResources } from "../services/resourceService";
-import { listAlerts } from "../services/alertService";
+import { listAlertSources, listAlerts } from "../services/alertService";
 import { listResponsePlans } from "../services/responsePlanService";
 
 const DataContext = createContext(null);
@@ -21,6 +21,7 @@ export function DataProvider({ children }) {
   const [incidents, setIncidents] = useState(initialSlice([]));
   const [resources, setResources] = useState(initialSlice([]));
   const [alerts, setAlerts] = useState(initialSlice([]));
+  const [feedSources, setFeedSources] = useState(initialSlice([]));
   const [activeAlerts, setActiveAlerts] = useState([]);
   const [responsePlans, setResponsePlans] = useState(initialSlice([]));
   const [histories, setHistories] = useState({ data: {}, loading: true, error: null, failedIds: [] });
@@ -80,15 +81,17 @@ export function DataProvider({ children }) {
       setIncidents((s) => ({ ...s, loading: true }));
       setResources((s) => ({ ...s, loading: true }));
       setAlerts((s) => ({ ...s, loading: true }));
+      setFeedSources((s) => ({ ...s, loading: true }));
       setResponsePlans((s) => ({ ...s, loading: true }));
 
-      const [p, i, r, a, alertResult, planResult] = await Promise.allSettled([
+      const [p, i, r, a, alertResult, planResult, feedSourceResult] = await Promise.allSettled([
         getPriorityQueue(),
         listIncidents(),
         listResources(),
         getAreaPriority(),
         listAlerts({ limit: 100 }),
         listResponsePlans(),
+        listAlertSources(),
       ]);
 
       if (p.status === "fulfilled") setPriority({ data: p.value, loading: false, error: null });
@@ -110,11 +113,14 @@ export function DataProvider({ children }) {
       if (planResult.status === "fulfilled") setResponsePlans({ data: planResult.value.plans, loading: false, error: null });
       else setResponsePlans((s) => ({ ...s, loading: false, error: planResult.reason }));
 
+      if (feedSourceResult.status === "fulfilled") setFeedSources({ data: feedSourceResult.value, loading: false, error: null });
+      else setFeedSources((s) => ({ ...s, loading: false, error: feedSourceResult.reason }));
+
       if (i.status === "fulfilled") await loadHistories(i.value);
       else setHistories((s) => ({ ...s, loading: false, error: i.reason }));
 
       await healthCheck;
-      if ([p, i, r, a, alertResult, planResult].every((result) => result.status === "fulfilled")) {
+      if ([p, i, r, a, alertResult, planResult, feedSourceResult].every((result) => result.status === "fulfilled")) {
         setLastUpdated(new Date());
       }
     } finally {
@@ -212,6 +218,7 @@ export function DataProvider({ children }) {
     incidents,
     resources,
     alerts,
+    feedSources,
     activeAlerts,
     responsePlans,
     histories,

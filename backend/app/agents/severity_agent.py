@@ -25,6 +25,7 @@ class SeverityAgent(AgentBase):
             hazard_magnitude=incident.hazard_magnitude,
             hazard_magnitude_unit=incident.hazard_magnitude_unit,
             provider_alert_level=incident.provider_alert_level,
+            vulnerable_groups=incident.vulnerable_groups,
         )
         assessment_json = assessment.model_dump(mode="json")
         narrative, fallback = self.ask_llm(

@@ -47,6 +47,7 @@ export default function Recommendations() {
 
   const [notesByRec, setNotesByRec] = useState({});
   const [confirmState, setConfirmState] = useState(null);
+  const [decisionError, setDecisionError] = useState("");
   const [submittingDecision, setSubmittingDecision] = useState(false);
 
   const [lookupId, setLookupId] = useState("");
@@ -140,11 +141,14 @@ export default function Recommendations() {
         message: result.message,
       });
       setConfirmState(null);
+      setDecisionError("");
     } catch (err) {
+      const message = describeError(err);
+      setDecisionError(message);
       toast({
         type: "error",
         title: "Could not record operator decision",
-        message: describeError(err),
+        message,
       });
     } finally {
       setSubmittingDecision(false);
@@ -540,7 +544,7 @@ export default function Recommendations() {
                         <button
                           type="button"
                           className="btn btn-teal"
-                          onClick={() => setConfirmState({ rec, decision: "approved" })}
+                          onClick={() => { setDecisionError(""); setConfirmState({ rec, decision: "approved" }); }}
                         >
                           <Icon name="checkCircle" size={15} />
                           <span>Approve Recommendation</span>
@@ -548,7 +552,7 @@ export default function Recommendations() {
                         <button
                           type="button"
                           className="btn btn-danger-outline"
-                          onClick={() => setConfirmState({ rec, decision: "rejected" })}
+                          onClick={() => { setDecisionError(""); setConfirmState({ rec, decision: "rejected" }); }}
                         >
                           <Icon name="xCircle" size={15} />
                           <span>Reject Recommendation</span>
@@ -582,7 +586,11 @@ export default function Recommendations() {
         recommendation={confirmState?.rec}
         note={confirmState ? notesByRec[confirmState.rec.id] : ""}
         submitting={submittingDecision}
-        onCancel={() => setConfirmState(null)}
+        errorMessage={decisionError}
+        onCancel={() => {
+          setConfirmState(null);
+          setDecisionError("");
+        }}
         onConfirm={handleConfirmDecision}
       />
     </div>
