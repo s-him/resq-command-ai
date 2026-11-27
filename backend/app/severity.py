@@ -16,9 +16,10 @@ from app.schemas import (
     SeverityAssessment,
     SeverityFactor,
     SeverityLevel,
+    VulnerableGroup,
 )
 
-RULES_VERSION = "demo-rules-v3"
+RULES_VERSION = "demo-rules-v4"
 MAX_SCORE = 100
 
 DISCLAIMER = (
@@ -395,20 +396,44 @@ def _remove_negated_mentions(text: str) -> str:
     return text
 
 
-def score_vulnerable_population(description: str | None, location: str | None) -> SeverityFactor:
-    """Factor 6: explicit vulnerable-setting/population terms in the report text."""
-    # The full stop keeps a negation in the description away from the location text.
-    text = _remove_negated_mentions(f"{description or ''} . {location or ''}".lower())
-    found = []
-    for term in VULNERABLE_TERMS:
-        if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text):
-            found.append(term)
+def score_vulnerable_population(
+    description: str | None,
+    location: str | None,
+    vulnerable_groups: list[VulnerableGroup | str] | None = None,
+) -> SeverityFactor:
+    """Factor 6: prefer explicit operator groups; use narrative matching as fallback."""
+    explicit_groups = [
+        _enum_value(group)
+        for group in (vulnerable_groups or [])
+        if _enum_value(group)
+    ]
+    if explicit_groups:
+        labels = {
+            "children": "children",
+            "elderly": "elderly",
+            "hospital": "hospital",
+            "school": "school",
+            "pregnant_women": "pregnant women",
+            "disabled": "disabled people",
+        }
+        found = [labels.get(group, group.replace("_", " ")) for group in explicit_groups]
+        reason = "explicitly reported vulnerable groups: " + ", ".join(found)
+    else:
+        # Keep the old conservative keyword fallback for reports without selections.
+        # The full stop keeps a description negation away from the location text.
+        text = _remove_negated_mentions(
+            f"{description or ''} . {location or ''}".lower()
+        )
+        found = []
+        for term in VULNERABLE_TERMS:
+            if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text):
+                found.append(term)
+        reason = (
+            "vulnerable population/setting mentioned: " + ", ".join(found)
+            if found
+            else "no hospital, school, elderly, child, infant or care-setting term recorded"
+        )
     points = VULNERABLE_POPULATION_MAX_POINTS if found else 0
-    reason = (
-        "vulnerable population/setting mentioned: " + ", ".join(found)
-        if found
-        else "no hospital, school, elderly, child, infant or care-setting term recorded"
-    )
     return SeverityFactor(
         factor="vulnerable_population",
         points=points,
@@ -436,6 +461,7 @@ def calculate_severity(
     hazard_magnitude: float | None = None,
     hazard_magnitude_unit: str | None = None,
     provider_alert_level: str | None = None,
+    vulnerable_groups: list[VulnerableGroup | str] | None = None,
     as_of: datetime | None = None,
 ) -> SeverityAssessment:
     """Calculate a transparent score using six bounded prototype factors."""
@@ -450,7 +476,7 @@ def calculate_severity(
             provider_alert_level,
         ),
         score_event_recency(reported_at, as_of=as_of),
-        score_vulnerable_population(description, location),
+        score_vulnerable_population(description, location, vulnerable_groups),
     ]
     score = sum(factor.points for factor in factors)
     level = level_for_score(score)

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.schemas import HelpType, SeverityLevel
+from app.schemas import HazardType, HelpType, SeverityLevel
 from app.severity import (
     RULES_VERSION,
     calculate_severity,
@@ -138,7 +138,7 @@ def test_result_is_labelled_as_prototype_estimate():
 
     assert "prototype" in result.disclaimer.lower()
     assert "not real emergency guidance" in result.disclaimer.lower()
-    assert result.rules_version == RULES_VERSION == "demo-rules-v3"
+    assert result.rules_version == RULES_VERSION == "demo-rules-v4"
 
 
 
@@ -247,3 +247,44 @@ def test_all_six_factors_can_reach_one_hundred_without_double_counting():
     assert result.score == 100
     assert result.level == SeverityLevel.CRITICAL
     assert [factor.points for factor in result.factors] == [35, 20, 10, 15, 15, 5]
+
+
+
+def test_explicit_vulnerable_groups_take_precedence_over_description_keywords():
+    explicit = score_vulnerable_population(
+        "No children or schools are affected.",
+        "Ward 4",
+        ["pregnant_women", "disabled"],
+    )
+    fallback = score_vulnerable_population(
+        "No children or schools are affected.",
+        "Ward 4",
+        [],
+    )
+
+    assert explicit.points == 5
+    assert explicit.max_points == 5
+    assert "pregnant women" in explicit.reason
+    assert "disabled people" in explicit.reason
+    assert "children" not in explicit.reason
+    assert fallback.points == 0
+
+
+def test_explicit_vulnerable_group_selection_adds_five_points_when_text_has_no_match():
+    assessment = calculate_severity(
+        40,
+        [HelpType.MEDICAL],
+        hazard_type=HazardType.FLOOD,
+        description="Floodwater reached storage rooms at the industrial depot.",
+        location="Industrial Depot",
+        reported_at=AS_OF - timedelta(hours=2),
+        vulnerable_groups=["elderly"],
+        as_of=AS_OF,
+    )
+
+    factor = next(
+        item for item in assessment.factors
+        if item.factor == "vulnerable_population"
+    )
+    assert factor.points == 5
+    assert assessment.score == 5 + 18 + 15 + 8 + 12

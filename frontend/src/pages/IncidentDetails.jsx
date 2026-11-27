@@ -434,6 +434,18 @@ export default function IncidentDetails({ incidentId }) {
               </dd>
             </div>
             <div className="kv-item kv-full">
+              <dt>Vulnerable Groups at Risk</dt>
+              <dd className="tag-row">
+                {incident.vulnerable_groups?.length ? (
+                  incident.vulnerable_groups.map((group) => (
+                    <span key={group} className="assist-tag">{labelize(group)}</span>
+                  ))
+                ) : (
+                  <span className="text-muted">Not specified</span>
+                )}
+              </dd>
+            </div>
+            <div className="kv-item kv-full">
               <dt>Requested Assistance</dt>
               <dd className="tag-row">
                 {incident.help_needed.map((help) => (

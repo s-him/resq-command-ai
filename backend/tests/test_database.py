@@ -143,7 +143,7 @@ def test_indexes_and_schema_migrations_exist_after_init(client):
         "idx_recommendation_items_recommendation_id",
         "idx_recommendation_items_resource_id",
     }.issubset(index_names)
-    assert applied == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
+    assert applied == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 
 
 # ---------- Upgrading a pre-upgrade legacy database ----------
@@ -199,6 +199,7 @@ def test_upgrade_legacy_database_preserves_records_ids_and_enforces_constraints(
     assert incident["location"] == "Ward 10"
     assert incident["severity"]["score"] == 41  # 18 people + 15 immediate + 8 flood; legacy report is stale
     assert incident["latitude"] is None
+    assert incident["vulnerable_groups"] == []
 
     assert len(resources) == 1 and resources[0]["id"] == 20
     assert rec["id"] == 30 and rec["status"] == "approved"
@@ -265,7 +266,7 @@ def test_old_rules_version_is_recalculated(client):
 
     assert incident_repository.fill_missing_severity() == 1
     updated = client.get(f"/api/incidents/{incident_id}").json()
-    assert updated["severity"]["rules_version"] == "demo-rules-v3"
+    assert updated["severity"]["rules_version"] == "demo-rules-v4"
     assert updated["severity"]["score"] > 1
     assert updated["severity"]["factors"][3]["points"] == 12
 
@@ -311,14 +312,15 @@ def test_migration_012_adds_optional_hazard_signal_columns(client):
         connection.close()
 
     assert {"event_at", "hazard_magnitude", "hazard_magnitude_unit", "provider_alert_level"}.issubset(columns)
-    assert {12, 13}.issubset(versions)
+    assert {12, 13, 15}.issubset(versions)
+    assert "vulnerable_groups" in columns
 
 
 def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     first = database.init_database()
     second = database.init_database()
 
-    assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    assert first == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     assert second == []
 
     connection = database.get_connection()
@@ -327,7 +329,7 @@ def test_rerunning_migrations_is_safe_and_idempotent(temp_database):
     finally:
         connection.close()
 
-    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    assert [row["version"] for row in rows] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
 
 # ---------- Invalid legacy rows halt safely without losing data ----------

@@ -39,6 +39,17 @@ class HelpType(str, Enum):
     OTHER = "other"
 
 
+class VulnerableGroup(str, Enum):
+    """Explicitly reported groups needing additional protection during a disaster."""
+
+    CHILDREN = "children"
+    ELDERLY = "elderly"
+    HOSPITAL = "hospital"
+    SCHOOL = "school"
+    PREGNANT_WOMEN = "pregnant_women"
+    DISABLED = "disabled"
+
+
 class IncidentStatus(str, Enum):
     """Lifecycle status of an incident. Only open incidents are priority-ranked."""
 
@@ -92,6 +103,7 @@ class IncidentCreate(BaseModel):
                     "reported_at": "2026-11-19T10:30:00+05:30",
                     "people_affected": 40,
                     "help_needed": ["evacuation", "food"],
+                    "vulnerable_groups": ["children", "elderly"],
                 }
             ]
         },
@@ -104,6 +116,11 @@ class IncidentCreate(BaseModel):
     event_at: datetime | None = None
     people_affected: int = Field(ge=0, le=1_000_000)
     help_needed: list[HelpType] = Field(min_length=1, max_length=len(HelpType))
+    vulnerable_groups: list[VulnerableGroup] = Field(
+        default_factory=list,
+        max_length=len(VulnerableGroup),
+        description="Optional, operator-reported vulnerable groups at risk.",
+    )
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     hazard_magnitude: float | None = Field(default=None, ge=0, le=100000)
@@ -157,6 +174,15 @@ class IncidentCreate(BaseModel):
             raise ValueError("help_needed must not contain duplicates")
         return value
 
+    @field_validator("vulnerable_groups")
+    @classmethod
+    def vulnerable_groups_no_duplicates(
+        cls, value: list[VulnerableGroup]
+    ) -> list[VulnerableGroup]:
+        if len(value) != len(set(value)):
+            raise ValueError("vulnerable_groups must not contain duplicates")
+        return value
+
 
 class Incident(BaseModel):
     """What the API sends back: the saved incident, including server-set fields."""
@@ -169,6 +195,7 @@ class Incident(BaseModel):
     event_at: datetime | None = None
     people_affected: int
     help_needed: list[HelpType]
+    vulnerable_groups: list[VulnerableGroup] = Field(default_factory=list)
     status: IncidentStatus
     created_at: datetime
     severity: SeverityAssessment
