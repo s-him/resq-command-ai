@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useState } from "react";
-import SafetyBanner from "./SafetyBanner";
+
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -56,7 +56,7 @@ export default function AppShell({ route, onOpenCreateIncident, children }) {
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenCreateIncident={onOpenCreateIncident}
         />
-        <SafetyBanner />
+       
         <main className="app-content" id="main-content">
           {children}
         </main>
